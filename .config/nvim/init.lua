@@ -26,6 +26,7 @@ vim.opt.tabstop = 2
 vim.opt.shiftwidth = 2
 vim.opt.expandtab = true
 vim.opt.smartindent = true
+vim.opt.swapfile = false
 
 -- =========================
 -- diagnostics
@@ -38,7 +39,7 @@ vim.diagnostic.config({
 
   signs = true,
   underline = true,
-  update_in_insert = false,
+  update_in_insert = true,
   severity_sort = true,
 
   float = {
@@ -194,6 +195,29 @@ require("lazy").setup({
         "<C-n>",
         ":NvimTreeToggle<CR>"
       )
+    end,
+  },
+
+  -- =========================
+  -- error lens
+  -- =========================
+  {
+    "chikko80/error-lens.nvim",
+
+    event = "BufRead",
+
+    dependencies = {
+      "nvim-telescope/telescope.nvim",
+    },
+
+    config = function()
+      require("error-lens").setup({
+        enabled = true,
+
+        auto_adjust = {
+          enable = false,
+        },
+      })
     end,
   },
 
@@ -383,6 +407,145 @@ require("lazy").setup({
         "n",
         "<leader>fh",
         builtin.help_tags
+      )
+    end,
+  },
+
+  -- =========================
+  -- static analysis (lint)
+  -- =========================
+  {
+    "mfussenegger/nvim-lint",
+
+    event = {
+      "BufEnter",
+      "BufWritePost",
+      "TextChanged",
+      "TextChangedI",
+      "InsertLeave",
+    },
+
+    config = function()
+      local lint = require("lint")
+
+      lint.linters_by_ft = {
+        javascript      = { "eslint_d" },
+        javascriptreact = { "eslint_d" },
+        typescript      = { "eslint_d" },
+        typescriptreact = { "eslint_d" },
+        python          = { "ruff" },
+        cpp             = { "cppcheck" },
+        c               = { "cppcheck" },
+      }
+
+      lint.linters.cppcheck = {
+        name = "cppcheck",
+        cmd = "cppcheck",
+        stdin = false,
+        append_fname = false,
+
+        args = {
+          "--enable=all",
+          "--inconclusive",
+          "--inline-suppr",
+          "--quiet",
+          "--template={file}:{line}:{column}:{severity}:{id}:{message}",
+          "--suppress=missingIncludeSystem",
+
+          function()
+            local tmp = vim.fn.tempname()
+              .. "."
+              .. vim.fn.expand("%:e")
+
+            vim.fn.writefile(
+              vim.api.nvim_buf_get_lines(
+                0, 0, -1, false
+              ),
+              tmp
+            )
+
+            return tmp
+          end,
+        },
+
+        stream = "stderr",
+        ignore_exitcode = true,
+
+        parser = function(output, bufnr)
+          local diagnostics = {}
+          local real =
+            vim.api.nvim_buf_get_name(bufnr)
+
+          for line in output:gmatch("[^\n]+") do
+            local file, row, col, sev, _, msg =
+              line:match(
+                "^(.+):(%d+):(%d+):(%w+):([^:]+):(.+)$"
+              )
+
+            if file and row then
+              if file ~= real then
+                file = real
+              end
+
+              local severity =
+                vim.diagnostic.severity.HINT
+
+              if sev == "error" then
+                severity =
+                  vim.diagnostic.severity.ERROR
+              elseif sev == "warning" then
+                severity =
+                  vim.diagnostic.severity.WARN
+              elseif sev == "style"
+                or sev == "performance"
+                or sev == "portability"
+              then
+                severity =
+                  vim.diagnostic.severity.INFO
+              end
+
+              table.insert(diagnostics, {
+                lnum     = tonumber(row) - 1,
+                col      = tonumber(col) - 1,
+                message  = vim.trim(msg),
+                severity = severity,
+                source   = "cppcheck",
+              })
+            end
+          end
+
+          return diagnostics
+        end,
+      }
+
+      local timer = vim.uv.new_timer()
+
+      local function debounced_lint()
+        if vim.bo.buftype ~= "" then
+          return
+        end
+
+        timer:stop()
+        timer:start(500, 0, vim.schedule_wrap(function()
+          lint.try_lint()
+        end))
+      end
+
+      vim.api.nvim_create_autocmd({
+        "BufEnter",
+        "BufWritePost",
+        "TextChanged",
+        "TextChangedI",
+        "InsertLeave",
+      }, {
+        callback = debounced_lint,
+      })
+
+      vim.keymap.set(
+        "n",
+        "<leader>ll",
+        lint.try_lint,
+        { desc = "Run linter" }
       )
     end,
   },

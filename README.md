@@ -2,6 +2,8 @@
 
 This is the dotfiles I mainly use.
 
+![](./image.png)
+
 ```zsh
  kr0@archlinux  ~  nvim -v
 NVIM v0.12.2

@@ -27,6 +27,10 @@ vim.opt.shiftwidth = 2
 vim.opt.expandtab = true
 vim.opt.smartindent = true
 vim.opt.swapfile = false
+vim.opt.shortmess:append("I")
+vim.opt.shortmess:append("c")
+vim.opt.cmdheight = 0
+vim.g.mapleader = " "
 
 -- =========================
 -- diagnostics
@@ -81,18 +85,12 @@ end
 local function apply_profile()
   local profile = get_profile()
 
-  if profile == "cpp" then
+  if profile == "cpp"
+    or profile == "rust"
+    or profile == "python"
+  then
     vim.opt.tabstop = 4
     vim.opt.shiftwidth = 4
-
-  elseif profile == "rust" then
-    vim.opt.tabstop = 4
-    vim.opt.shiftwidth = 4
-
-  elseif profile == "python" then
-    vim.opt.tabstop = 4
-    vim.opt.shiftwidth = 4
-
   else
     vim.opt.tabstop = 2
     vim.opt.shiftwidth = 2
@@ -147,6 +145,23 @@ require("lazy").setup({
       end
 
       ts.setup({
+        ensure_installed = {
+          "lua",
+          "vim",
+          "javascript",
+          "typescript",
+          "tsx",
+          "html",
+          "css",
+          "json",
+          "c",
+          "cpp",
+          "rust",
+          "python",
+        },
+
+        auto_install = true,
+
         highlight = {
           enable = true,
         },
@@ -178,6 +193,34 @@ require("lazy").setup({
   },
 
   -- =========================
+  -- mason lspconfig
+  -- =========================
+  {
+    "williamboman/mason-lspconfig.nvim",
+
+    dependencies = {
+      "williamboman/mason.nvim",
+      "neovim/nvim-lspconfig",
+    },
+
+    config = function()
+      require("mason-lspconfig").setup({
+        ensure_installed = {
+          "lua_ls",
+          "ts_ls",
+          "clangd",
+          "rust_analyzer",
+          "pyright",
+          "html",
+          "cssls",
+        },
+
+        automatic_installation = true,
+      })
+    end,
+  },
+
+  -- =========================
   -- file tree
   -- =========================
   {
@@ -189,12 +232,22 @@ require("lazy").setup({
 
     config = function()
       require("nvim-tree").setup()
+    end,
+  },
 
-      vim.keymap.set(
-        "n",
-        "<C-n>",
-        ":NvimTreeToggle<CR>"
-      )
+  -- =========================
+  -- telescope
+  -- =========================
+  {
+    "nvim-telescope/telescope.nvim",
+
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+    },
+
+    config = function()
+      local builtin =
+        require("telescope.builtin")
     end,
   },
 
@@ -242,6 +295,7 @@ require("lazy").setup({
         .default_capabilities()
 
       local servers = {
+        "lua_ls",
         "ts_ls",
         "clangd",
         "rust_analyzer",
@@ -265,41 +319,6 @@ require("lazy").setup({
             local opts = {
               buffer = ev.buf,
             }
-
-            vim.keymap.set(
-              "n",
-              "gd",
-              vim.lsp.buf.definition,
-              opts
-            )
-
-            vim.keymap.set(
-              "n",
-              "K",
-              vim.lsp.buf.hover,
-              opts
-            )
-
-            vim.keymap.set(
-              "n",
-              "<leader>rn",
-              vim.lsp.buf.rename,
-              opts
-            )
-
-            vim.keymap.set(
-              "n",
-              "<leader>ca",
-              vim.lsp.buf.code_action,
-              opts
-            )
-
-            vim.keymap.set(
-              "n",
-              "gr",
-              vim.lsp.buf.references,
-              opts
-            )
           end,
         }
       )
@@ -320,6 +339,7 @@ require("lazy").setup({
       "hrsh7th/cmp-path",
       "L3MON4D3/LuaSnip",
       "saadparwaiz1/cmp_luasnip",
+      "windwp/nvim-autopairs",
     },
 
     config = function()
@@ -368,51 +388,74 @@ require("lazy").setup({
           },
         },
       })
+
+      local cmp_autopairs =
+        require(
+          "nvim-autopairs.completion.cmp"
+        )
+
+      cmp.event:on(
+        "confirm_done",
+        cmp_autopairs.on_confirm_done()
+      )
     end,
   },
 
   -- =========================
-  -- telescope
+  -- autopairs
   -- =========================
   {
-    "nvim-telescope/telescope.nvim",
+    "windwp/nvim-autopairs",
+
+    event = "InsertEnter",
+
+    config = function()
+      require("nvim-autopairs").setup()
+    end,
+  },
+
+  -- =========================
+  -- auto tag
+  -- =========================
+  {
+    "windwp/nvim-ts-autotag",
+
+    event = {
+      "BufReadPre",
+      "BufNewFile",
+    },
 
     dependencies = {
-      "nvim-lua/plenary.nvim",
+      "nvim-treesitter/nvim-treesitter",
+    },
+
+    opts = {
+      opts = {
+        enable_close = true,
+        enable_rename = true,
+        enable_close_on_slash = true,
+      },
+    },
+  },
+
+  -- =========================
+  -- colorizer
+  -- =========================
+  {
+    "catgoose/nvim-colorizer.lua",
+
+    event = {
+      "BufReadPre",
+      "BufNewFile",
     },
 
     config = function()
-      local builtin =
-        require("telescope.builtin")
-
-      vim.keymap.set(
-        "n",
-        "<leader>ff",
-        builtin.find_files
-      )
-
-      vim.keymap.set(
-        "n",
-        "<leader>fg",
-        builtin.live_grep
-      )
-
-      vim.keymap.set(
-        "n",
-        "<leader>fb",
-        builtin.buffers
-      )
-
-      vim.keymap.set(
-        "n",
-        "<leader>fh",
-        builtin.help_tags
-      )
+      require("colorizer").setup()
     end,
   },
 
   -- =========================
-  -- static analysis (lint)
+  -- lint
   -- =========================
   {
     "mfussenegger/nvim-lint",
@@ -429,93 +472,9 @@ require("lazy").setup({
       local lint = require("lint")
 
       lint.linters_by_ft = {
-        javascript      = { "eslint_d" },
-        javascriptreact = { "eslint_d" },
-        typescript      = { "eslint_d" },
-        typescriptreact = { "eslint_d" },
         python          = { "ruff" },
         cpp             = { "cppcheck" },
         c               = { "cppcheck" },
-      }
-
-      lint.linters.cppcheck = {
-        name = "cppcheck",
-        cmd = "cppcheck",
-        stdin = false,
-        append_fname = false,
-
-        args = {
-          "--enable=all",
-          "--inconclusive",
-          "--inline-suppr",
-          "--quiet",
-          "--template={file}:{line}:{column}:{severity}:{id}:{message}",
-          "--suppress=missingIncludeSystem",
-
-          function()
-            local tmp = vim.fn.tempname()
-              .. "."
-              .. vim.fn.expand("%:e")
-
-            vim.fn.writefile(
-              vim.api.nvim_buf_get_lines(
-                0, 0, -1, false
-              ),
-              tmp
-            )
-
-            return tmp
-          end,
-        },
-
-        stream = "stderr",
-        ignore_exitcode = true,
-
-        parser = function(output, bufnr)
-          local diagnostics = {}
-          local real =
-            vim.api.nvim_buf_get_name(bufnr)
-
-          for line in output:gmatch("[^\n]+") do
-            local file, row, col, sev, _, msg =
-              line:match(
-                "^(.+):(%d+):(%d+):(%w+):([^:]+):(.+)$"
-              )
-
-            if file and row then
-              if file ~= real then
-                file = real
-              end
-
-              local severity =
-                vim.diagnostic.severity.HINT
-
-              if sev == "error" then
-                severity =
-                  vim.diagnostic.severity.ERROR
-              elseif sev == "warning" then
-                severity =
-                  vim.diagnostic.severity.WARN
-              elseif sev == "style"
-                or sev == "performance"
-                or sev == "portability"
-              then
-                severity =
-                  vim.diagnostic.severity.INFO
-              end
-
-              table.insert(diagnostics, {
-                lnum     = tonumber(row) - 1,
-                col      = tonumber(col) - 1,
-                message  = vim.trim(msg),
-                severity = severity,
-                source   = "cppcheck",
-              })
-            end
-          end
-
-          return diagnostics
-        end,
       }
 
       local timer = vim.uv.new_timer()
@@ -526,9 +485,14 @@ require("lazy").setup({
         end
 
         timer:stop()
-        timer:start(500, 0, vim.schedule_wrap(function()
-          lint.try_lint()
-        end))
+
+        timer:start(
+          500,
+          0,
+          vim.schedule_wrap(function()
+            lint.try_lint()
+          end)
+        )
       end
 
       vim.api.nvim_create_autocmd({
@@ -549,5 +513,49 @@ require("lazy").setup({
       )
     end,
   },
+  {
+    "3rd/image.nvim",
 
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+    },
+
+    config = function()
+      require("image").setup({
+        backend = "kitty",
+
+        integrations = {
+          markdown = {
+            enabled = true,
+            clear_in_insert_mode = false,
+            download_remote_images = true,
+          },
+        },
+
+        max_width = 100,
+        max_height = 30,
+
+        kitty_method = "normal",
+      })
+    end,
+  },
+  {
+  "akinsho/bufferline.nvim",
+
+  dependencies = {
+    "nvim-tree/nvim-web-devicons",
+  },
+
+  config = function()
+    require("bufferline").setup({
+      options = {
+        diagnostics = "nvim_lsp",
+        separator_style = "slant",
+        always_show_bufferline = true,
+      },
+    })
+
+    vim.opt.termguicolors = true
+  end,
+  },
 })

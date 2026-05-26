@@ -1,67 +1,60 @@
 {
-  "layer": "top",
-  "position": "top",
-  "height": 16,
-  "spacing": 0,
-  "modules-left": [
-    "clock",
-    "wlr/workspaces",
-    "wlr/taskbar"
-  ],
-  "modules-center": [
-    "hyprland/window"
-  ],
-  "modules-right": [
-    "cpu",
-    "memory",
-    "custom/gpu",
-    "tray"
-  ],
-  "cpu": {
-    "interval": 1,
-    "format": "  {usage}%",
-    "tooltip": true
-  },
-  "memory": {
-    "interval": 1,
-    "format": "   {used:0.1f}G/{total:0.1f}G",
-    "tooltip-format": "{used:0.1f}GiB / {total:0.1f}GiB ({percentage}%)"
-  },
-"custom/gpu": {
-    "exec": "~/.config/waybar/gpu_info.sh",
-    "return-type": "json",
-    "interval": 1,
-    "format": "{}"
-},
-  "wlr/taskbar": {
-    "on-click": "activate",
-    "on-click-middle": "close",
-    "ignore-list": [
-      "foot"
-    ]
-  },
-  "wlr/workspaces": {
-    "on-click": "activate",
-    "on-scroll-up": "hyprctl dispatch workspace e-1",
-    "on-scroll-down": "hyprctl dispatch workspace e+1"
-  },
-  "hyprland/window": {
-    "max-length": 128
-  },
-  "clock": {
-    "interval": 1,
-    "format": "  {:%H:%M:%S}",
-    "format-alt": "󰃭  {:%Y-%m-%d}",
-    "tooltip-format": "<tt>{calendar}</tt>",
-    "calendar": {
-      "mode": "month",
-      "on-scroll": 1,
-      "format": {
-          "today": "<span color='#ff6699'><b><u>{}</u></b></span>"
-      }
-    }
-  },
-  "tray": {
-    "spacing": 4
-  }
+	"include": [
+		"~/.config/waybar/modules/hypr/window.jsonc",
+		"~/.config/waybar/modules/hypr/workspaces.jsonc",
+		"~/.config/waybar/modules/custom/arch.jsonc",
+		"~/.config/waybar/modules/custom/browser.jsonc",
+		"~/.config/waybar/modules/custom/fileman.jsonc",
+		"~/.config/waybar/modules/custom/terminal.jsonc",
+		"~/.config/waybar/modules/custom/virtmanager.jsonc",
+		"~/.config/waybar/modules/custom/nvim.jsonc",
+		"~/.config/waybar/modules/custom/nowplaying.jsonc",
+		"~/.config/waybar/modules/custom/updates.jsonc",
+		"~/.config/waybar/modules/custom/launcher.jsonc",
+		"~/.config/waybar/modules/custom/spacers.jsonc",
+		"~/.config/waybar/modules/custom/system.jsonc",
+		"~/.config/waybar/modules/custom/vpn.jsonc",
+		"~/.config/waybar/modules/pulseaudio.jsonc",
+		"~/.config/waybar/modules/backlight.jsonc",
+		"~/.config/waybar/modules/battery.jsonc",
+		"~/.config/waybar/modules/clock.jsonc",
+		"~/.config/waybar/modules/cpu.jsonc",
+		"~/.config/waybar/modules/idle_inhibitor.jsonc",
+		"~/.config/waybar/modules/memory.jsonc",
+		"~/.config/waybar/modules/network.jsonc",
+		"~/.config/waybar/modules/temperature.jsonc",
+		"~/.config/waybar/modules/tray.jsonc"
+	],
+	"position": "top",
+	"modules-left": [
+		"custom/system",
+    "custom/spacer",
+		"hyprland/workspaces",
+    "custom/spacer",
+		"custom/launcher",
+		"custom/browser",
+		"custom/fileman",
+		"custom/terminal",
+    "custom/spacerrrr",
+		"custom/nowplaying"
+	],
+	"modules-right": [
+    "hyprland/window",
+    "custom/spacerrrr",
+		"tray",
+		"custom/updates",
+		"idle_inhibitor",
+		"custom/spacer",
+		"pulseaudio",
+		"custom/spacer",
+		"network",
+		"custom/spacer",
+		"memory",
+		"custom/spacer",
+		"cpu",
+		"custom/spacer",
+		"temperature",
+		"custom/spacer",
+		"clock"
+	]
 }

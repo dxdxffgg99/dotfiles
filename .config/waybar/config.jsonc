@@ -48,13 +48,6 @@
 		"pulseaudio",
 		"custom/spacer",
 		"network",
-		"custom/spacer",
-		"memory",
-		"custom/spacer",
-		"cpu",
-		"custom/spacer",
-		"temperature",
-		"custom/spacer",
-		"clock"
+		"custom/spacer"
 	]
 }

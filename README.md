@@ -13,3 +13,8 @@ This is the dotfiles I mainly use.
 | **GPU** | Intel Iris Xe Graphics (TigerLake-LP GT2) |
 | **Architecture** | x86_64 |
 
+## install
+
+```sh
+https://githubusercontent.com/dxdxffgg99/dotfiles/main/install.sh
+```

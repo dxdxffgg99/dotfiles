@@ -1,7 +1,0 @@
-{
-	"custom/launcher": {
-		"format": "󱓞",
-		"tooltip": false,
-		"on-click": "ls ~/.local/bin | rofi -dmenu | xargs -I {} setsid -f ~/.local/bin/{}"
-	}
-}

@@ -1,8 +1,0 @@
-{
-	"custom/browser": {
-		"format": "",
-		"on-click": "google-chrome-stable",
-		"tooltip": false,
-		"icon-size": 32
-	}
-}

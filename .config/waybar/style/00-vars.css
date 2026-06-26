@@ -2,44 +2,44 @@
 @define-color fg_muted #9AA0AA;
 @define-color bg_main #0E0F14;
 @define-color bg_alt #151720;
-@define-color warn_fg #FF9F00;
-@define-color crit_fg #FF2A1A;
+@define-color warn_fg #f5c48a;
+@define-color crit_fg #f5a0a0;
 @define-color window_main rgb(24, 24, 24);
 @define-color tooltips_bg rgba(24, 24, 24, 0.92);
 @define-color workspaces_bg rgba(45, 45, 45, 0.3);
 @define-color trayc rgb(24, 24, 24);
 /* Wi-Fi / Network */
-@define-color net_fg #00e5ff;
+@define-color net_fg #89e0e0;
 
 /* VPN */
-@define-color vpn_fg #9a00ff;
+@define-color vpn_fg #c4a8f5;
 
 /* Volume */
-@define-color vol_fg #ffe066;
-@define-color vol_fg_muted #e03a3a;
+@define-color vol_fg #f5e08a;
+@define-color vol_fg_muted #f5a8a8;
 
 /* Backlight / Brightness */
-@define-color backlight_fg #7c86ff;
+@define-color backlight_fg #aab4f5;
 
 /* CPU */
-@define-color cpu_fg #9aafd0;
+@define-color cpu_fg #89d4f5;
 
 /* Memory */
-@define-color mem_fg #ff4d6d;
+@define-color mem_fg #9ee8a0;
 
 /* Disk */
-@define-color disk_fg #4DA88B;
+@define-color disk_fg #8ad5c0;
 
 /* Temperature */
-@define-color temp_cool #4da6ff;
+@define-color temp_cool #a8c4f5;
 
 
 /* Battery */
-@define-color bat_good #00ff6a;
+@define-color bat_good #a0f0b0;
 @define-color bat_norm #ffffff;
 
 
 /* Bluetooth */
-@define-color bt_connected #1e6cff;
-@define-color bt_on #1e6cff;
-@define-color bt_off #1e6cff;
+@define-color bt_connected #a8bcf5;
+@define-color bt_on #a8bcf5;
+@define-color bt_off #a8bcf5;

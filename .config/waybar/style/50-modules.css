@@ -14,10 +14,28 @@
 	color: @temp_cool;
 }
 
-#memory,
 #cpu {
 	color: @cpu_fg;
+	min-width: 41px;
 }
+
+#memory {
+	color: @mem_fg;
+	min-width: 51px;
+}
+
+#network {
+	min-width: 45px;
+}
+
+#temperature {
+	min-width: 41px;
+}
+
+#battery {
+	min-width: 41px;
+}
+
 
 #temperature.warning,
 #memory.warning,

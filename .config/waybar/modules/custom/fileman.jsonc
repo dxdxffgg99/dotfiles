@@ -1,9 +1,0 @@
-{
-  "custom/fileman": {
-    "format": "",
-    "on-click": "dolphin",
-    "tooltip": false,
-    "icon-size": 32
-  }
-}
-

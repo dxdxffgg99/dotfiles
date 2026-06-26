@@ -1,9 +1,0 @@
-{
-  "custom/terminal": {
-    "format": " ",
-    "on-click": "kitty",
-    "tooltip": false,
-    "icon-size": 50
-  }
-}
-

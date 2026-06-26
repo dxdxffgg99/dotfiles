@@ -151,5 +151,4 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("awww-daemon && awww img ~/wp.png")
     hl.exec_cmd("jetbrains-toolbox")
     hl.exec_cmd(terminal)
-    -- wvkbd는 타이머 첫 tick(2초 후)에 자동 처리
 end)

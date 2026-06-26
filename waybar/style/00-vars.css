@@ -1,0 +1,45 @@
+@define-color fg_main #FFFFFF;
+@define-color fg_muted #9AA0AA;
+@define-color bg_main #0E0F14;
+@define-color bg_alt #151720;
+@define-color warn_fg #f5c48a;
+@define-color crit_fg #f5a0a0;
+@define-color window_main rgb(24, 24, 24);
+@define-color tooltips_bg rgba(24, 24, 24, 0.92);
+@define-color workspaces_bg rgba(45, 45, 45, 0.3);
+@define-color trayc rgb(24, 24, 24);
+/* Wi-Fi / Network */
+@define-color net_fg #89e0e0;
+
+/* VPN */
+@define-color vpn_fg #c4a8f5;
+
+/* Volume */
+@define-color vol_fg #f5e08a;
+@define-color vol_fg_muted #f5a8a8;
+
+/* Backlight / Brightness */
+@define-color backlight_fg #aab4f5;
+
+/* CPU */
+@define-color cpu_fg #89d4f5;
+
+/* Memory */
+@define-color mem_fg #9ee8a0;
+
+/* Disk */
+@define-color disk_fg #8ad5c0;
+
+/* Temperature */
+@define-color temp_cool #a8c4f5;
+
+
+/* Battery */
+@define-color bat_good #a0f0b0;
+@define-color bat_norm #ffffff;
+
+
+/* Bluetooth */
+@define-color bt_connected #a8bcf5;
+@define-color bt_on #a8bcf5;
+@define-color bt_off #a8bcf5;

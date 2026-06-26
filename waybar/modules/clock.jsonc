@@ -1,0 +1,8 @@
+{
+	"custom/clock": {
+		"exec": "~/.config/waybar/scripts/clock.sh",
+		"return-type": "json",
+		"interval": 1,
+		"tooltip": true
+	}
+}

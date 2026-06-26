@@ -1,0 +1,7 @@
+{
+    "custom/keyboard": {
+		"format": " ",
+		"tooltip": false,
+		"on-click": "pgrep -f \"wvkbd-mobintl\" > /dev/null && pkill \"wvkbd-mobintl\" || wvkbd-mobintl -L 350"
+	}
+}

@@ -1,0 +1,7 @@
+{
+	"memory": {
+		"format": "󰍛 {used:01.1f}G",
+		"interval": 2,
+		"tooltip": false
+	}
+}

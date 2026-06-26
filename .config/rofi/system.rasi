@@ -37,25 +37,13 @@ window {
 
 mainbox {
   orientation: horizontal;
-  children: [ "powerside", "message" ];
-  padding: 10px 10px 10px 10px;
+  children: [ "message" ];
+  padding: 10px;
   background-color: transparent;
 }
 
 inputbar {
   enabled: false;
-}
-
-powerside {
- orientation: vertical;
-  children: [ "listview" ];
-  expand: false;
-  width: 64px;
-
-  background-color: @panel;
-  border: 2px;
-  border-color: transparent;
-  border-radius: 0px;
 }
 
 entry {
@@ -70,7 +58,7 @@ message {
   background-color: transparent;
   enabled: true;
   expand: true;
-  padding: 8px 0px 4px 8px;
+  padding: 4px 0px;
 }
 
 textbox {
@@ -81,38 +69,3 @@ textbox {
   border-radius: 2px;
 }
 
-listview {
-  enabled: true;
-  columns: 1;
-  lines: 4;
-  spacing: @spacing;
-  fixed-height: true;
-  scrollbar: false;
-  background-color: transparent;
-  expand: true;
-}
-
-element {
-  background-color: transparent;
-  text-color: @text;
-
-  border: 2px;
-  border-color: transparent;
-  border-radius: 1px;
-  width: 48px;
-  padding: 17px 0px;
-}
-
-element selected {
-  border-color: @accent;
-  background-color: #1a2030;
-  border: 2px;
-}
-
-element-text {
-  horizontal-align: 0.5;
-  vertical-align: 0.5;
-  background-color: transparent;
-  text-color: @text;
-  padding: 0px 6px 0px 0px;
-}

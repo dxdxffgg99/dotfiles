@@ -16,5 +16,5 @@ This is the dotfiles I mainly use.
 ## install
 
 ```sh
-https://githubusercontent.com/dxdxffgg99/dotfiles/main/install.sh
+curl -fsSL https://raw.githubusercontent.com/dxdxffgg99/dotfiles/main/install.sh | bash
 ```

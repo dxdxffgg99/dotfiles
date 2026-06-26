@@ -21,6 +21,7 @@ vim.opt.rtp:prepend(lazypath)
 -- =========================
 vim.opt.number = true
 vim.opt.signcolumn = "yes"
+vim.opt.termguicolors = true
 
 vim.opt.tabstop = 2
 vim.opt.shiftwidth = 2
@@ -31,6 +32,9 @@ vim.opt.shortmess:append("I")
 vim.opt.shortmess:append("c")
 vim.opt.cmdheight = 0
 vim.g.mapleader = " "
+
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
 
 -- =========================
 -- diagnostics
@@ -208,16 +212,54 @@ require("lazy").setup({
         ensure_installed = {
           "lua_ls",
           "ts_ls",
-          "clangd",
+          -- clangd는 Mason prebuilt 바이너리가 Arch에서 GLIBC 문제로 실패함
+          -- 터미널에서 직접: sudo pacman -S clang
           "rust_analyzer",
           "pyright",
           "html",
           "cssls",
         },
 
-        automatic_installation = true,
+        automatic_installation = false,
       })
     end,
+  },
+
+  -- =========================
+  -- mason nvim-lint (linter 자동 설치)
+  -- =========================
+  {
+    "jay-babu/mason-nvim-lint",
+
+    dependencies = {
+      "williamboman/mason.nvim",
+      "mfussenegger/nvim-lint",
+    },
+
+    opts = {
+      ensure_installed = {
+        "ruff",
+      },
+    },
+  },
+
+  -- =========================
+  -- image
+  -- =========================
+  {
+    "3rd/image.nvim",
+
+    build = "luarocks --local install magick",
+
+    opts = {
+      backend = "kitty",
+
+      integrations = {
+        markdown = {
+          enabled = true,
+        },
+      },
+    },
   },
 
   -- =========================
@@ -232,6 +274,13 @@ require("lazy").setup({
 
     config = function()
       require("nvim-tree").setup()
+
+      vim.keymap.set(
+        "n",
+        "<leader>e",
+        ":NvimTreeToggle<CR>",
+        { desc = "Toggle file tree" }
+      )
     end,
   },
 
@@ -248,6 +297,26 @@ require("lazy").setup({
     config = function()
       local builtin =
         require("telescope.builtin")
+
+      vim.keymap.set(
+        "n", "<leader>ff", builtin.find_files,
+        { desc = "Find files" }
+      )
+
+      vim.keymap.set(
+        "n", "<leader>fg", builtin.live_grep,
+        { desc = "Live grep" }
+      )
+
+      vim.keymap.set(
+        "n", "<leader>fb", builtin.buffers,
+        { desc = "Find buffers" }
+      )
+
+      vim.keymap.set(
+        "n", "<leader>fh", builtin.help_tags,
+        { desc = "Help tags" }
+      )
     end,
   },
 
@@ -296,6 +365,39 @@ require("lazy").setup({
             local opts = {
               buffer = ev.buf,
             }
+
+            vim.keymap.set(
+              "n", "gd",
+              vim.lsp.buf.definition, opts
+            )
+
+            vim.keymap.set(
+              "n", "gr",
+              vim.lsp.buf.references, opts
+            )
+
+            vim.keymap.set(
+              "n", "K",
+              vim.lsp.buf.hover, opts
+            )
+
+            vim.keymap.set(
+              "n", "<leader>rn",
+              vim.lsp.buf.rename, opts
+            )
+
+            vim.keymap.set(
+              "n", "<leader>ca",
+              vim.lsp.buf.code_action, opts
+            )
+
+            vim.keymap.set(
+              "n", "<leader>lf",
+              function()
+                vim.lsp.buf.format({ async = true })
+              end,
+              opts
+            )
           end,
         }
       )
@@ -351,6 +453,10 @@ require("lazy").setup({
           },
 
           {
+            name = "luasnip",
+          },
+
+          {
             name = "buffer",
           },
 
@@ -358,12 +464,6 @@ require("lazy").setup({
             name = "path",
           },
         }),
-
-        completion = {
-          autocomplete = {
-            cmp.TriggerEvent.InsertEnter,
-          },
-        },
       })
 
       local cmp_autopairs =
@@ -432,6 +532,34 @@ require("lazy").setup({
   },
 
   -- =========================
+  -- noice (cmdheight=0 메시지 처리)
+  -- =========================
+  {
+    "folke/noice.nvim",
+
+    lazy = false,
+    priority = 900,
+
+    dependencies = {
+      "MunifTanjim/nui.nvim",
+    },
+
+    opts = {
+      lsp = {
+        override = {
+          ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+          ["vim.lsp.util.stylize_markdown"] = true,
+        },
+      },
+      presets = {
+        bottom_search = true,
+        command_palette = true,
+        long_message_to_split = true,
+      },
+    },
+  },
+
+  -- =========================
   -- lint
   -- =========================
   {
@@ -490,49 +618,25 @@ require("lazy").setup({
       )
     end,
   },
+
+  -- =========================
+  -- bufferline
+  -- =========================
   {
-    "3rd/image.nvim",
+    "akinsho/bufferline.nvim",
 
     dependencies = {
-      "nvim-treesitter/nvim-treesitter",
+      "nvim-tree/nvim-web-devicons",
     },
 
     config = function()
-      require("image").setup({
-        backend = "kitty",
-
-        integrations = {
-          markdown = {
-            enabled = true,
-            clear_in_insert_mode = false,
-            download_remote_images = true,
-          },
+      require("bufferline").setup({
+        options = {
+          diagnostics = "nvim_lsp",
+          separator_style = "slant",
+          always_show_bufferline = true,
         },
-
-        max_width = 100,
-        max_height = 30,
-
-        kitty_method = "normal",
       })
     end,
-  },
-  {
-  "akinsho/bufferline.nvim",
-
-  dependencies = {
-    "nvim-tree/nvim-web-devicons",
-  },
-
-  config = function()
-    require("bufferline").setup({
-      options = {
-        diagnostics = "nvim_lsp",
-        separator_style = "slant",
-        always_show_bufferline = true,
-      },
-    })
-
-    vim.opt.termguicolors = true
-  end,
   },
 })

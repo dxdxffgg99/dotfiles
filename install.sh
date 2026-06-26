@@ -41,6 +41,17 @@ PACKAGES=(
   fastfetch
   btop
   waybar
+  slurp
+  grim
+  clang
+  cppcheck
+  luarocks
+  imagemagick
+  ripgrep
+  fd
+  nodejs
+  npm
+  unzip
 )
 
 install_packages() {

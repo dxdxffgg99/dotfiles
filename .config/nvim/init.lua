@@ -212,8 +212,6 @@ require("lazy").setup({
         ensure_installed = {
           "lua_ls",
           "ts_ls",
-          -- clangd는 Mason prebuilt 바이너리가 Arch에서 GLIBC 문제로 실패함
-          -- 터미널에서 직접: sudo pacman -S clang
           "rust_analyzer",
           "pyright",
           "html",
@@ -226,7 +224,7 @@ require("lazy").setup({
   },
 
   -- =========================
-  -- mason nvim-lint (linter 자동 설치)
+  -- mason nvim-lint
   -- =========================
   {
     "jay-babu/mason-nvim-lint",
@@ -532,7 +530,7 @@ require("lazy").setup({
   },
 
   -- =========================
-  -- noice (cmdheight=0 메시지 처리)
+  -- noice
   -- =========================
   {
     "folke/noice.nvim",
@@ -639,4 +637,5 @@ require("lazy").setup({
       })
     end,
   },
+
 })

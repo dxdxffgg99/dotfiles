@@ -14,9 +14,3 @@ This is the dotfiles I mainly use.
 | **Storage** | NVMe SSD 256GB |
 | **GPU** | Intel Iris Xe Graphics (TigerLake-LP GT2) |
 | **Architecture** | x86_64 |
-
-## install
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/dxdxffgg99/dotfiles/main/install.sh | bash
-```

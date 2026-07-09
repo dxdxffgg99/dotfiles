@@ -2,6 +2,8 @@
 
 This is the dotfiles I mainly use.
 
+![image.png](./image.png)
+
 ## System Info
 | item | info |
 |------|------|

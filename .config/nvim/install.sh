@@ -63,8 +63,8 @@ printf "\e[1;32m[install]\e[0m Go Delve debugger\n"
 go install github.com/go-delve/delve/cmd/dlv@latest > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }
 printf "\e[32mok\e[0m\n"
 
-printf "\e[1;32m[install]\e[0m Go Delve debugger\n"
-go install github.com/go-delve/delve/cmd/dlv@latest > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }
+printf "\e[1;32m[install]\e[0m Rust LLDB debugger\n"
+cargo install lldb-vscode > /dev/null 2>&1 || { printf "\e[33mok (lldb-vscode skipped)\e[0m\n"; }
 printf "\e[32mok\e[0m\n"
 
 printf "\e[1;32m[install]\e[0m Luarocks Magick\n"

@@ -63,21 +63,9 @@ printf "\e[1;32m[install]\e[0m Go Delve debugger\n"
 go install github.com/go-delve/delve/cmd/dlv@latest > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }
 printf "\e[32mok\e[0m\n"
 
-if ! command -v cargo &> /dev/null; then
-    printf "\e[1;32m[install]\e[0m Rust\n"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        source $HOME/.cargo/env
-        cargo install lldb-vscode > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            printf "\e[32mok\e[0m\n"
-        else
-            printf "\e[33mok (lldb-vscode skipped)\e[0m\n"
-        fi
-    else
-        printf "\e[33mwarning: Rust installation skipped (optional)\e[0m\n"
-    fi
-fi
+printf "\e[1;32m[install]\e[0m Go Delve debugger\n"
+go install github.com/go-delve/delve/cmd/dlv@latest > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }
+printf "\e[32mok\e[0m\n"
 
 printf "\e[1;32m[install]\e[0m Luarocks Magick\n"
 luarocks --local install magick > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }

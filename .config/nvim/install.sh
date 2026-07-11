@@ -67,10 +67,6 @@ printf "\e[1;32m[install]\e[0m Rust LLDB debugger\n"
 cargo install lldb-vscode > /dev/null 2>&1 || { printf "\e[33mok (lldb-vscode skipped)\e[0m\n"; }
 printf "\e[32mok\e[0m\n"
 
-printf "\e[1;32m[install]\e[0m Luarocks Magick\n"
-luarocks --local install magick > /dev/null 2>&1 || { printf "\e[31m[FAIL] luarocks magick installation failed\e[0m\n"; exit 1; }
-printf "\e[32mok\e[0m\n"
-
 printf "\e[1;32m[install]\e[0m Neovim config\n"
 mkdir -p ~/.config/nvim
 curl -fsSL https://raw.githubusercontent.com/dxdxffgg99/dotfiles/main/.config/nvim/init.lua > ~/.config/nvim/init.lua || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }

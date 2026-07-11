@@ -19,6 +19,11 @@ printf "\e[38;5;208m        \\/         \\/              \\/                \\/ 
 
 printf "\n"
 
+if ! command -v sudo &> /dev/null; then
+    printf "\e[31m[ERROR] sudo is not installed\e[0m\n"
+    exit 1
+fi
+
 for i in {1..5}; do
   printf "\e[36m%d\e[0m\n" "$i"
   sleep 1
@@ -60,10 +65,18 @@ printf "\e[32mok\e[0m\n"
 
 if ! command -v cargo &> /dev/null; then
     printf "\e[1;32m[install]\e[0m Rust\n"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }
-    source $HOME/.cargo/env
-    cargo install lldb-vscode > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }
-    printf "\e[32mok\e[0m\n"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        source $HOME/.cargo/env
+        cargo install lldb-vscode > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            printf "\e[32mok\e[0m\n"
+        else
+            printf "\e[33mok (lldb-vscode skipped)\e[0m\n"
+        fi
+    else
+        printf "\e[33mwarning: Rust installation skipped (optional)\e[0m\n"
+    fi
 fi
 
 printf "\e[1;32m[install]\e[0m Luarocks Magick\n"

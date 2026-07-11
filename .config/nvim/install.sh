@@ -68,7 +68,7 @@ cargo install lldb-vscode > /dev/null 2>&1 || { printf "\e[33mok (lldb-vscode sk
 printf "\e[32mok\e[0m\n"
 
 printf "\e[1;32m[install]\e[0m Luarocks Magick\n"
-sudo pacman -S imagemagick lua luarocks base-devel > /dev/null 2>&1 || { printf "\e[31m[FAIL] installation failed\e[0m\n"; exit 1; }
+luarocks --local install magick > /dev/null 2>&1 || { printf "\e[31m[FAIL] luarocks magick installation failed\e[0m\n"; exit 1; }
 printf "\e[32mok\e[0m\n"
 
 printf "\e[1;32m[install]\e[0m Neovim config\n"

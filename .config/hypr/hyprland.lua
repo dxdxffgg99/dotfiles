@@ -25,13 +25,14 @@ hl.monitor({
 -- =============================================
 local mainMod     = "SUPER"
 local terminal    = "kitty"
-local fileManager = "dolphin"
+local fileManager = "nautilus"
 local menu        = "rofi"
 local browser     = "google-chrome-stable"
 
 -- =============================================
 -- CONFIG
 -- =============================================
+
 hl.config({
     general = {
         gaps_in          = 5,
@@ -58,9 +59,9 @@ hl.config({
         },
         blur = {
             enabled  = true,
-            size     = 6,
+            size     = 4,
             passes   = 2,
-            vibrancy = 0.16,
+            vibrancy = 0.5,
             xray     = false,
         },
     },
@@ -98,7 +99,6 @@ hl.config({
 -- =============================================
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + C", hl.dsp.window.close())
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
@@ -118,6 +118,7 @@ for i = 1, 9 do
     hl.bind(mainMod .. " + " .. i,           hl.dsp.focus({ workspace = i }))
     hl.bind(mainMod .. " + SHIFT + " .. i,   hl.dsp.window.move({ workspace = i }))
 end
+
 hl.bind(mainMod .. " + 0",         hl.dsp.focus({ workspace = 10 }))
 hl.bind(mainMod .. " + SHIFT + 0", hl.dsp.window.move({ workspace = 10 }))
 
@@ -127,12 +128,12 @@ hl.bind(mainMod .. " + mouse:272",  hl.dsp.window.drag())
 hl.bind(mainMod .. " + mouse:273",  hl.dsp.window.resize())
 
 hl.bind(mainMod .. " + ALT + V", hl.dsp.exec_cmd("vesktop"))
+hl.bind(mainMod .. " + ALT + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + ALT + W", hl.dsp.exec_cmd(browser))
 hl.bind(mainMod .. " + ALT + L", hl.dsp.exec_cmd("~/.appdata/lmstudio.AppImage"))
 hl.bind(mainMod .. " + ALT + B", hl.dsp.exec_cmd("~/.appdata/obsidian.AppImage"))
-hl.bind(mainMod .. " + ALT + S", hl.dsp.exec_cmd("steam"))
 hl.bind(mainMod .. " + SPACE",   hl.dsp.exec_cmd("ls ~/.local/bin | rofi -dmenu | xargs -I {} setsid -f ~/.local/bin/{}"))
-hl.bind(mainMod .. " + insert",  hl.dsp.exec_cmd("grim -g $(slurp) - | wl-copy"))
+hl.bind(mainMod .. " + insert",  hl.dsp.exec_cmd("grim -g \"$(slurp)\" -t png - | wl-copy -t image/png"))
 
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true })
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true })
@@ -148,7 +149,6 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
     hl.exec_cmd("fcitx5")
     hl.exec_cmd("waybar")
-    hl.exec_cmd("awww-daemon && awww img ~/wp.png")
-    hl.exec_cmd("jetbrains-toolbox")
+    hl.exec_cmd("[ -f ~/.config/wp.png ] || curl -fsSL https://raw.githubusercontent.com/dxdxffgg99/dotfiles/main/.config/wp.png -o ~/.config/wp.png && (awww-daemon && awww img ~/.config/wp.png")
     hl.exec_cmd(terminal)
 end)

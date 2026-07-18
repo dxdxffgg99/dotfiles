@@ -790,7 +790,7 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>db", dap.toggle_breakpoint, { desc = "Toggle breakpoint" })
       vim.keymap.set("n", "<leader>dB", function()
         dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
-      end, { desc = "Set conditional breakpoint" })2
+      end, { desc = "Set conditional breakpoint" })
       vim.keymap.set("n", "<leader>dc", dap.continue, { desc = "Continue" })
       vim.keymap.set("n", "<leader>dn", dap.step_over, { desc = "Step over" })
       vim.keymap.set("n", "<leader>ds", dap.step_into, { desc = "Step into" })

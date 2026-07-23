@@ -13,8 +13,8 @@ configuration {
   tile:         #141620;
   text:         #e6e8ff;
   text-dim:     #9ca3c1;
-  accent:       #7c8cff;
-  border:       rgba(124, 140, 255, 0.28);
+  accent:       #33ccff;
+  border:       rgba(51, 204, 255, 0.28);
 
   spacing: 10;
 }

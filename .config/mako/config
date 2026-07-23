@@ -1,0 +1,49 @@
+# mako config — matches the waybar/hyprland dark + pastel-accent theme
+# (bg #151720, fg #FFFFFF, cyan accent #89E0E0, rounding 10 to match hyprland)
+
+sort=-time
+layer=overlay
+anchor=top-right
+outer-margin=20
+
+width=380
+height=150
+padding=14
+margin=8
+
+background-color=#151720F0
+text-color=#FFFFFF
+border-size=2
+border-radius=10
+border-color=#89E0E0FF
+progress-color=over #89E0E0FF
+
+icons=1
+max-icon-size=48
+
+markup=1
+actions=1
+default-timeout=6000
+ignore-timeout=0
+
+font=JetBrainsMono Nerd Font 11
+format=<b>%s</b>\n%b
+
+on-button-left=dismiss
+on-button-right=dismiss-all
+on-button-middle=invoke-default-action
+on-touch=dismiss
+
+[urgency=low]
+border-color=#9AA0AAFF
+default-timeout=3000
+
+[urgency=normal]
+border-color=#89E0E0FF
+
+[urgency=critical]
+border-color=#F5A0A0FF
+default-timeout=0
+
+[mode=do-not-disturb]
+invisible=1

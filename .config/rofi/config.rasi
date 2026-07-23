@@ -7,12 +7,12 @@ configuration {
 
 * {
     font: "JetBrainsMono Nerd Font 10";
-    background: #11121dCC;
-    background-alt: #1a1b26FF;
-    foreground: #a9b1d6FF;
-    selected: #7aa2f7FF;
-    active: #9ece6aFF;
-    urgent: #f7768eFF;
+    background: #12131fdd;
+    background-alt: #171a2dff;
+    foreground: #d7d9f5ff;
+    selected: #7e8bffcc;
+    active: #8dd7ffcc;
+    urgent: #ff90a8cc;
 }
 
 window {
@@ -27,7 +27,7 @@ window {
     margin: 0px;
     padding: 0px;
     border: 2px solid;
-    border-radius: 12px;
+    border-radius: 16px;
     border-color: @selected;
     background-color: @background;
     cursor: "default";

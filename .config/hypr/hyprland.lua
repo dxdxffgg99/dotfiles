@@ -132,7 +132,7 @@ hl.bind(mainMod .. " + ALT + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + ALT + W", hl.dsp.exec_cmd(browser))
 hl.bind(mainMod .. " + SPACE",   hl.dsp.exec_cmd("ls ~/.local/bin | rofi -dmenu | xargs -I {} setsid -f ~/.local/bin/{}"))
 hl.bind(mainMod .. " + insert",  hl.dsp.exec_cmd("grim -g \"$(slurp)\" -t png - | wl-copy -t image/png"))
-hl.bind(mainMod .. " + L",       hl.dsp.exec_cmd(".config/hypr/whenlock.sh && hyprlock -c ~/.config/hypr/hyprlock.conf && .config/hypr/whennotlock.sh"))
+hl.bind(mainMod .. " + L",       hl.dsp.exec_cmd("~/.config/hypr/whenlock.sh && hyprlock -c ~/.config/hypr/hyprlock.conf && ~/.config/hypr/whennotlock.sh"))
 
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true })
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true })

@@ -1,3 +1,5 @@
+# INSTALL
+
 ```sh
 mkdir ~/.config/fastfetch
 fastfetch --gen-config

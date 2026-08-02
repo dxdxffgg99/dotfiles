@@ -562,6 +562,8 @@ require("lazy").setup({
 
   { "folke/tokyonight.nvim", lazy = false, priority = 1000 },
 
+  { "catppuccin/nvim", name = "catppuccin", lazy = false, priority = 1000 },
+
   {
     "zaldih/themery.nvim",
     lazy = false,
@@ -569,13 +571,18 @@ require("lazy").setup({
     config = function()
       require("themery").setup({
         themes = {
+          { name = "Tokyo Night Darker",        colorscheme = "tokyonight-night" },
           { name = "GitHub Dark High Contrast", colorscheme = "github_dark_high_contrast" },
           { name = "Tokyo Night",               colorscheme = "tokyonight" },
+          { name = "Catppuccin Latte",          colorscheme = "catppuccin-latte" },
+          { name = "Catppuccin Frappe",         colorscheme = "catppuccin-frappe" },
+          { name = "Catppuccin Macchiato",      colorscheme = "catppuccin-macchiato" },
+          { name = "Catppuccin Mocha",          colorscheme = "catppuccin-mocha" },
         },
         livePreview = true,
       })
       if not vim.g.colors_name then
-        vim.cmd.colorscheme("github_dark_high_contrast")
+        vim.cmd.colorscheme("tokyonight-night")
       end
     end,
   },
@@ -672,19 +679,6 @@ require("lazy").setup({
       vim.lsp.config("clangd", {
         cmd = { "clangd", "--background-index", "--clang-tidy", "--header-insertion=iwyu" },
       })
-
-      -- hyprland.lua files use a runtime-injected `hl` global (Hyprland's lua IPC
-      -- table) that lua_ls has no way to know about; suppress just that diagnostic
-      -- there instead of whitelisting `hl` as a global for every lua file.
-      local orig_publish_diagnostics = vim.lsp.handlers["textDocument/publishDiagnostics"]
-      vim.lsp.handlers["textDocument/publishDiagnostics"] = function(err, result, ctx, config)
-        if result and result.diagnostics and vim.uri_to_fname(result.uri):match("hyprland%.lua$") then
-          result.diagnostics = vim.tbl_filter(function(d)
-            return not (d.code == "undefined-global" and d.message:match("`hl`"))
-          end, result.diagnostics)
-        end
-        orig_publish_diagnostics(err, result, ctx, config)
-      end
 
       vim.api.nvim_create_user_command("LspDef", vim.lsp.buf.definition, {})
       vim.api.nvim_create_user_command("LspTypeDef", vim.lsp.buf.type_definition, {})
@@ -1097,22 +1091,40 @@ require("lazy").setup({
     main = "ibl",
     event = { "BufReadPre", "BufNewFile" },
     config = function()
-      local colors = {
-        "#12151c",
-        "#171b24",
-        "#1d212c",
-        "#222734",
-        "#282e3d",
-        "#2d3445",
-        "#333b4e",
-      }
+      local function hex_to_rgb(hex)
+        hex = hex:gsub("#", "")
+        return tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16)
+      end
+
+      local function blend(fg, bg, alpha)
+        local fr, fg_, fb = hex_to_rgb(fg)
+        local br, bgg, bb = hex_to_rgb(bg)
+        local r = math.floor(fr * alpha + br * (1 - alpha))
+        local g = math.floor(fg_ * alpha + bgg * (1 - alpha))
+        local b = math.floor(fb * alpha + bb * (1 - alpha))
+        return string.format("#%02x%02x%02x", r, g, b)
+      end
 
       local hl_groups = {}
-      for i, color in ipairs(colors) do
-        local name = "IndentColorizer" .. i
-        vim.api.nvim_set_hl(0, name, { bg = color })
-        table.insert(hl_groups, name)
+      for i = 1, 7 do
+        table.insert(hl_groups, "IndentColorizer" .. i)
       end
+
+      local function setup_colors()
+        local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
+        local bg = normal.bg and string.format("#%06x", normal.bg) or "#1e1e2e"
+        local fg = normal.fg and string.format("#%06x", normal.fg) or "#cdd6f4"
+
+        for i, name in ipairs(hl_groups) do
+          local alpha = 0.03 + (i - 1) * 0.025
+          vim.api.nvim_set_hl(0, name, { bg = blend(fg, bg, alpha) })
+        end
+      end
+
+      setup_colors()
+      vim.api.nvim_create_autocmd("ColorScheme", {
+        callback = setup_colors,
+      })
 
       require("ibl").setup({
         indent = {

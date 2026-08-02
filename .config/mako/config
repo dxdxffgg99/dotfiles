@@ -1,5 +1,5 @@
 # mako config — matches the waybar/hyprland dark + pastel-accent theme
-# (bg #151720, fg #FFFFFF, cyan accent #89E0E0, rounding 10 to match hyprland)
+# (bg #151720, fg #FFFFFF, pastel sky accent #A8D8FF, rounding 10 to match hyprland)
 
 sort=-time
 layer=overlay
@@ -15,8 +15,8 @@ background-color=#151720F0
 text-color=#FFFFFF
 border-size=2
 border-radius=10
-border-color=#89E0E0FF
-progress-color=over #89E0E0FF
+border-color=#A8D8FFFF
+progress-color=over #A8D8FFFF
 
 icons=1
 max-icon-size=48
@@ -39,10 +39,10 @@ border-color=#9AA0AAFF
 default-timeout=3000
 
 [urgency=normal]
-border-color=#89E0E0FF
+border-color=#A8D8FFFF
 
 [urgency=critical]
-border-color=#F5A0A0FF
+border-color=#FFB3BAFF
 default-timeout=0
 
 [mode=do-not-disturb]

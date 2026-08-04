@@ -22,7 +22,6 @@ if [[ -z "$FIRST_OPEN_SHELL" ]]; then
 
     alias la='ls -lha'
     alias reload='source ~/.zshrc'
-    alias cls='clear'
     alias cd..='cd ..'
 
     eval "$(starship init zsh)"

@@ -1,28 +1,30 @@
-ZSH_THEME=""
+clear
 
-plugins=(
-    git
-    zsh-syntax-highlighting
-    zsh-autosuggestions
-    web-search
-)
+if [[ -z "$FIRST_OPEN_SHELL" ]]; then
+    export FIRST_OPEN_SHELL=1
 
-source ~/.oh-my-zsh/oh-my-zsh.sh
+    ZSH_THEME=""
 
-ZSH_HIGHLIGHT_STYLES[command]='fg=cyan,bold'
-ZSH_HIGHLIGHT_STYLES[builtin]='fg=blue,bold'
-ZSH_HIGHLIGHT_STYLES[alias]='fg=magenta,bold'
-ZSH_HIGHLIGHT_STYLES[single-hyphen-option]='fg=yellow'
-ZSH_HIGHLIGHT_STYLES[double-hyphen-option]='fg=yellow'
+    plugins=(
+        git
+        zsh-syntax-highlighting
+        zsh-autosuggestions
+        web-search
+    )
 
-eval "$(starship init zsh)"
+    source ~/.oh-my-zsh/oh-my-zsh.sh
 
-alias la='ls -lha'
-alias reload='source ~/.zshrc'
-alias cls='clear'
-alias cd..='cd ..'
+    ZSH_HIGHLIGHT_STYLES[command]='fg=cyan,bold'
+    ZSH_HIGHLIGHT_STYLES[builtin]='fg=blue,bold'
+    ZSH_HIGHLIGHT_STYLES[alias]='fg=magenta,bold'
+    ZSH_HIGHLIGHT_STYLES[single-hyphen-option]='fg=yellow'
+    ZSH_HIGHLIGHT_STYLES[double-hyphen-option]='fg=yellow'
 
-if [[ -z "$FASTFETCH_SHOWN" ]]; then
-    export FASTFETCH_SHOWN=1
-    clear && fastfetch
+    alias la='ls -lha'
+    alias reload='source ~/.zshrc'
+    alias cls='clear'
+    alias cd..='cd ..'
+
+    eval "$(starship init zsh)"
+    fastfetch
 fi

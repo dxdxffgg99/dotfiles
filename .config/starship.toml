@@ -92,15 +92,15 @@ style = 'bg:#5E5C64 fg:#322c3d'
 
 # You can also replace your username with a neat symbol like  to save some space
 [username]
-show_always = false
+show_always = true
 style_user = "bg:#5E5C64 fg:#F6F5F4 bold"
-style_root = "bg:#5E5C64 fg:#A51D2D	bold"
+style_root = "bg:#5E5C64 fg:#F6F5F4 bold"
 format = '[ $user]($style)'
 
 [hostname]
-style = "bg:#1A5FB4 fg:#F6F5F4 bold"
+style = "bg:#5E5C64 fg:#F6F5F4 bold"
 format = '[@$hostname ]($style)'
-ssh_only = true
+ssh_only = false
 disabled = false
 
 [directory]

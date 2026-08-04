@@ -1,13 +1,13 @@
 @define-color fg_main #FFFFFF;
 @define-color fg_muted #9AA0AA;
-@define-color bg_main #0E0F14;
-@define-color bg_alt #151720;
+@define-color bg_main #000000;
+@define-color bg_alt #000000;
 @define-color warn_fg #f5c48a;
 @define-color crit_fg #f5a0a0;
-@define-color window_main rgb(24, 24, 24);
-@define-color tooltips_bg rgba(24, 24, 24, 0.92);
-@define-color workspaces_bg rgba(45, 45, 45, 0.3);
-@define-color trayc rgb(24, 24, 24);
+@define-color window_main rgb(0, 0, 0);
+@define-color tooltips_bg rgba(0, 0, 0, 0.92);
+@define-color workspaces_bg rgba(0, 0, 0, 0.3);
+@define-color trayc rgb(0, 0, 0);
 /* Wi-Fi / Network */
 @define-color net_fg #89e0e0;
 

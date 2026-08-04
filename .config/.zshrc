@@ -22,4 +22,7 @@ alias reload='source ~/.zshrc'
 alias cls='clear'
 alias cd..='cd ..'
 
-clear && fastfetch
+if [[ -z "$FASTFETCH_SHOWN" ]]; then
+    export FASTFETCH_SHOWN=1
+    clear && fastfetch
+fi

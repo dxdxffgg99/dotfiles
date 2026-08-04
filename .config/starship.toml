@@ -84,10 +84,10 @@ bash_indicator = ''
 zsh_indicator = ''
 
 [battery]
-format=  '[$symbol$percentage ]($style)'
+format=  '[ $symbol$percentage]($style)'
 
 [[battery.display]]
-threshold = 75
+threshold = 25
 style = 'bg:#5E5C64 fg:#322c3d'
 
 # You can also replace your username with a neat symbol like  to save some space

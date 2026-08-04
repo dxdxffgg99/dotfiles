@@ -2,11 +2,7 @@
 
 KO_MONTHS=("" "1월" "2월" "3월" "4월" "5월" "6월" "7월" "8월" "9월" "10월" "11월" "12월")
 
-year=$(date +%Y)
-month=$(date +%-m)
-month_pad=$(date +%m)
-day=$(date +%-d)
-time=$(date +%H:%M:%S)
+read -r year month month_pad day time <<< "$(date +'%Y %-m %m %-d %H:%M:%S')"
 
 first_dow=$(date -d "${year}-${month_pad}-01" +%w)
 days_in_month=$(date -d "${year}-${month_pad}-01 +1 month -1 day" +%d)

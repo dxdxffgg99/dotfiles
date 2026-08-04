@@ -553,16 +553,15 @@ require("lazy").setup({
 
   {
     "projekt0n/github-nvim-theme",
-    lazy = false,
-    priority = 1000,
+    lazy = true,
     config = function()
       require("github-theme").setup()
     end,
   },
 
-  { "folke/tokyonight.nvim", lazy = false, priority = 1000 },
+  { "folke/tokyonight.nvim", lazy = true },
 
-  { "catppuccin/nvim", name = "catppuccin", lazy = false, priority = 1000 },
+  { "catppuccin/nvim", name = "catppuccin", lazy = true },
 
   {
     "zaldih/themery.nvim",
@@ -677,7 +676,7 @@ require("lazy").setup({
       end
 
       vim.lsp.config("clangd", {
-        cmd = { "clangd", "--background-index", "--clang-tidy", "--header-insertion=iwyu" },
+        cmd = { "clangd", "--background-index=false", "--clang-tidy", "--header-insertion=iwyu" },
       })
 
       vim.api.nvim_create_user_command("LspDef", vim.lsp.buf.definition, {})
@@ -950,7 +949,7 @@ require("lazy").setup({
 
   {
     "mfussenegger/nvim-lint",
-    event = { "BufEnter", "BufWritePost", "TextChanged", "TextChangedI", "InsertLeave" },
+    event = { "BufEnter", "BufWritePost", "InsertLeave" },
     config = function()
       local lint = require("lint")
 
@@ -969,7 +968,7 @@ require("lazy").setup({
         timer:start(500, 0, vim.schedule_wrap(function() lint.try_lint() end))
       end
 
-      vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "TextChanged", "TextChangedI", "InsertLeave" }, {
+      vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "InsertLeave" }, {
         callback = debounced_lint,
       })
 

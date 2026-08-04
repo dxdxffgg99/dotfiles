@@ -1,4 +1,4 @@
-ZSH_THEME="agnoster"
+ZSH_THEME=""
 
 plugins=(
     git
@@ -15,11 +15,11 @@ ZSH_HIGHLIGHT_STYLES[alias]='fg=magenta,bold'
 ZSH_HIGHLIGHT_STYLES[single-hyphen-option]='fg=yellow'
 ZSH_HIGHLIGHT_STYLES[double-hyphen-option]='fg=yellow'
 
+eval "$(starship init zsh)"
+
 alias la='ls -lha'
 alias reload='source ~/.zshrc'
 alias cls='clear'
 alias cd..='cd ..'
 
 clear && fastfetch
-
-export ZSH_COMPDUMP="$HOME/.cache/oh-my-zsh/.zcompdump-$HOST"

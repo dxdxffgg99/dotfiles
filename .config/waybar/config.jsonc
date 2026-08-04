@@ -10,7 +10,6 @@
 		"~/.config/waybar/modules/taskbar.jsonc",
 		"~/.config/waybar/modules/custom/spacers.jsonc",
 		"~/.config/waybar/modules/custom/system.jsonc",
-		"~/.config/waybar/modules/custom/camera.jsonc",
 		"~/.config/waybar/modules/pulseaudio.jsonc",
 		"~/.config/waybar/modules/battery.jsonc",
 		"~/.config/waybar/modules/clock.jsonc",
@@ -19,7 +18,6 @@
 		"~/.config/waybar/modules/temperature.jsonc",
 		"~/.config/waybar/modules/tray.jsonc",
 		"~/.config/waybar/modules/cpu.jsonc"
-		
 	],
 	"position": "top",
 	"modules-left": [
@@ -29,7 +27,6 @@
 		"custom/spacer",
 		"wlr/taskbar",
 		"custom/spacer",
-		"custom/camera",
 		"custom/big_spacer",
 		"custom/nowplaying"
 	],

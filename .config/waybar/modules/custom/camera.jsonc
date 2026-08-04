@@ -1,7 +1,0 @@
-{
-    "custom/camera": {
-		"format": "󰄀 ",
-		"tooltip": false,
-		"on-click": "sp8-cam-toggle toggle"
-	}
-}

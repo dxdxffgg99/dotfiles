@@ -25,6 +25,7 @@ vim.opt.tabstop = 2
 vim.opt.shiftwidth = 2
 vim.opt.expandtab = true
 vim.opt.swapfile = false
+vim.opt.undofile = true
 vim.opt.shortmess:append("I")
 vim.opt.shortmess:append("c")
 vim.opt.cmdheight = 0
@@ -40,7 +41,7 @@ vim.diagnostic.config({
   },
   signs = true,
   underline = true,
-  update_in_insert = true,
+  update_in_insert = false,
   severity_sort = true,
   float = {
     border = "rounded",
@@ -103,6 +104,12 @@ vim.api.nvim_create_autocmd("DirChanged", {
   end,
 })
 
+vim.api.nvim_create_autocmd("BufDelete", {
+  callback = function(ev)
+    profile_cache[ev.buf] = nil
+  end,
+})
+
 vim.api.nvim_create_autocmd({ "ColorScheme", "VimEnter" }, {
   callback = function()
     local groups = {
@@ -133,12 +140,15 @@ local function setup_cmake_compile_commands()
   for _, dir in ipairs(build_dirs) do
     local cmd_file = root .. "/" .. dir .. "/compile_commands.json"
     if vim.fn.filereadable(cmd_file) == 1 then
-      local clangd_config = root .. "/.clangd"
-      if vim.fn.filereadable(clangd_config) == 0 then
-        local file = io.open(clangd_config, "w")
-        if file then
-          file:write("CompileFlags:\n  CompilationDatabase: " .. dir .. "\n")
-          file:close()
+      if dir ~= "build" then
+        local clangd_config = root .. "/.clangd"
+        if vim.fn.filereadable(clangd_config) == 0 then
+          local file = io.open(clangd_config, "w")
+          if file then
+            file:write("CompileFlags:\n  CompilationDatabase: " .. dir .. "\n")
+            file:close()
+            vim.notify("Wrote .clangd pointing at " .. dir .. "/", vim.log.levels.INFO)
+          end
         end
       end
       break
@@ -156,30 +166,38 @@ vim.g.CArgConf = vim.g.CArgConf or ""
 vim.g.CArgBuild = vim.g.CArgBuild or ""
 vim.g.CArgTest = vim.g.CArgTest or ""
 
-local task_terminal_id = 100
+local task_term = nil
 
 local function run_in_terminal(cmd, ok_msg, err_prefix)
   ok_msg = ok_msg or cmd
   err_prefix = err_prefix or cmd
-  local ok, toggleterm = pcall(require, "toggleterm")
-  if ok then
-    local Terminal = require("toggleterm.terminal").Terminal
-    Terminal:new({
-      id = task_terminal_id,
-      cmd = cmd,
-      direction = "float",
-      float_opts = { border = "rounded" },
-      on_exit = function(_, _, exit_code)
-        if exit_code == 0 then
-          vim.notify("✓ " .. ok_msg, vim.log.levels.INFO)
-        else
-          vim.notify("✗ " .. err_prefix .. " (exit " .. exit_code .. ")", vim.log.levels.ERROR)
-        end
-      end,
-    }):toggle()
-  else
-    vim.cmd("terminal " .. cmd)
+  local ok = pcall(require, "toggleterm")
+  if not ok then
+    vim.cmd("botright split | terminal " .. cmd)
+    return
   end
+
+  local Terminal = require("toggleterm.terminal").Terminal
+
+  if task_term then
+    pcall(function() task_term:shutdown() end)
+    task_term = nil
+  end
+
+  task_term = Terminal:new({
+    cmd = cmd,
+    direction = "float",
+    close_on_exit = false,
+    float_opts = { border = "rounded" },
+    on_exit = function(_, _, exit_code)
+      if exit_code == 0 then
+        vim.notify("✓ " .. ok_msg, vim.log.levels.INFO)
+      else
+        vim.notify("✗ " .. err_prefix .. " (exit " .. exit_code .. ")", vim.log.levels.ERROR)
+      end
+    end,
+  })
+  task_term:open()
 end
 
 -- ccmd (https://codeberg.org/dalmurii/ccmd.vim), ported: CMake configure/build/test helpers
@@ -277,9 +295,12 @@ local function load_cmake_state()
   return (ok and type(data) == "table") and data or {}
 end
 
+local cmake_target_cache = {}
+
 local function save_cmake_target(root, target)
   local state = load_cmake_state()
   state[root] = target
+  cmake_target_cache[root] = target
   local f = io.open(cmake_state_file(), "w")
   if f then
     f:write(vim.json.encode(state))
@@ -287,16 +308,13 @@ local function save_cmake_target(root, target)
   end
 end
 
-local cmake_target_cache = {}
-
 local function get_cmake_target(root)
-  if cmake_target_cache[root] then
-    return cmake_target_cache[root]
+  local cached = cmake_target_cache[root]
+  if cached ~= nil then
+    return cached or nil
   end
   local target = load_cmake_state()[root]
-  if target then
-    cmake_target_cache[root] = target
-  end
+  cmake_target_cache[root] = target or false
   return target
 end
 
@@ -518,8 +536,8 @@ local function run_file()
   run_in_terminal(cmd, "Run successful", "Run failed")
 end
 
-vim.api.nvim_create_user_command("Build", build_file, {})
-vim.api.nvim_create_user_command("Run", run_file, {})
+vim.api.nvim_create_user_command("Build", function() build_file() end, {})
+vim.api.nvim_create_user_command("Run", function() run_file() end, {})
 
 local function cmake_menu()
   local root = vim.fn.getcwd()
@@ -548,6 +566,23 @@ end
 
 vim.api.nvim_create_user_command("CMakeMenu", cmake_menu, {})
 vim.keymap.set("n", "<leader>cm", cmake_menu, { desc = "CMake menu (build/run/debug/target)" })
+
+local colorscheme_owner = {
+  tokyonight = "tokyonight.nvim",
+  catppuccin = "catppuccin",
+  github = "github-nvim-theme",
+}
+
+vim.api.nvim_create_autocmd("ColorSchemePre", {
+  callback = function(ev)
+    for prefix, plugin in pairs(colorscheme_owner) do
+      if vim.startswith(ev.match, prefix) then
+        pcall(require("lazy").load, { plugins = { plugin } })
+        return
+      end
+    end
+  end,
+})
 
 require("lazy").setup({
 
@@ -588,40 +623,108 @@ require("lazy").setup({
 
   {
     "nvim-treesitter/nvim-treesitter",
+    branch = "main",
+    lazy = false,
     build = ":TSUpdate",
     dependencies = { "nvim-treesitter/nvim-treesitter-textobjects" },
     config = function()
-      local ok, ts = pcall(require, "nvim-treesitter.configs")
-      if not ok then return end
-      ts.setup({
-        ensure_installed = {
-          "lua", "vim", "javascript", "typescript", "tsx",
-          "html", "css", "json", "c", "cpp", "rust", "python", "go",
-        },
-        auto_install = true,
-        highlight = { enable = true },
-        indent = { enable = true },
-        textobjects = {
-          select = {
-            enable = true,
-            lookahead = true,
-            keymaps = {
-              ["af"] = "@function.outer",
-              ["if"] = "@function.inner",
-              ["ac"] = "@class.outer",
-              ["ic"] = "@class.inner",
-              ["aa"] = "@parameter.outer",
-              ["ia"] = "@parameter.inner",
-            },
-          },
-          move = {
-            enable = true,
-            set_jumps = true,
-            goto_next_start = { ["]m"] = "@function.outer", ["]]"] = "@class.outer" },
-            goto_previous_start = { ["[m"] = "@function.outer", ["[["] = "@class.outer" },
-          },
-        },
+      local nts = require("nvim-treesitter")
+      nts.setup()
+
+      local ensure_installed = {
+        "lua", "vim", "vimdoc", "query", "javascript", "typescript", "tsx",
+        "html", "css", "json", "c", "cpp", "rust", "python", "go",
+      }
+
+      local warned = false
+      local function can_build()
+        if vim.fn.executable("tree-sitter") == 1 then return true end
+        if not warned then
+          warned = true
+          vim.notify(
+            "tree-sitter CLI not found -- parsers can't be built.\n" ..
+            "Install it with: pacman -S tree-sitter-cli",
+            vim.log.levels.WARN
+          )
+        end
+        return false
+      end
+
+      local installed = {}
+      for _, lang in ipairs(nts.get_installed()) do
+        installed[lang] = true
+      end
+
+      local missing = vim.tbl_filter(function(lang) return not installed[lang] end, ensure_installed)
+      if #missing > 0 and can_build() then
+        nts.install(missing)
+      end
+
+      local function start(buf, lang)
+        if not vim.api.nvim_buf_is_valid(buf) then return end
+        if not pcall(vim.treesitter.start, buf, lang) then return end
+        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+      end
+
+      local pending = {}
+      vim.api.nvim_create_autocmd("FileType", {
+        callback = function(ev)
+          local lang = vim.treesitter.language.get_lang(ev.match)
+          if not lang then return end
+
+          if vim.treesitter.language.add(lang) then
+            start(ev.buf, lang)
+            return
+          end
+
+          if pending[lang] or not vim.tbl_contains(nts.get_available(), lang) then return end
+          if not can_build() then return end
+          pending[lang] = true
+          nts.install(lang):await(function(err)
+            pending[lang] = nil
+            if err then return end
+            vim.schedule(function() start(ev.buf, lang) end)
+          end)
+        end,
       })
+    end,
+  },
+
+  {
+    "nvim-treesitter/nvim-treesitter-textobjects",
+    branch = "main",
+    lazy = true,
+    config = function()
+      require("nvim-treesitter-textobjects").setup({
+        select = { lookahead = true },
+        move = { set_jumps = true },
+      })
+
+      local select = require("nvim-treesitter-textobjects.select")
+      for lhs, query in pairs({
+        ["af"] = "@function.outer",
+        ["if"] = "@function.inner",
+        ["ac"] = "@class.outer",
+        ["ic"] = "@class.inner",
+        ["aa"] = "@parameter.outer",
+        ["ia"] = "@parameter.inner",
+      }) do
+        vim.keymap.set({ "x", "o" }, lhs, function()
+          select.select_textobject(query, "textobjects")
+        end, { desc = "Select " .. query })
+      end
+
+      local move = require("nvim-treesitter-textobjects.move")
+      for lhs, spec in pairs({
+        ["]m"] = { "goto_next_start", "@function.outer" },
+        ["]]"] = { "goto_next_start", "@class.outer" },
+        ["[m"] = { "goto_previous_start", "@function.outer" },
+        ["[["] = { "goto_previous_start", "@class.outer" },
+      }) do
+        vim.keymap.set({ "n", "x", "o" }, lhs, function()
+          move[spec[1]](spec[2], "textobjects")
+        end, { desc = spec[1] .. " " .. spec[2] })
+      end
     end,
   },
 
@@ -660,7 +763,7 @@ require("lazy").setup({
   {
     "neovim/nvim-lspconfig",
     event = { "BufReadPre", "BufNewFile" },
-    dependencies = { "hrsh7th/cmp-nvim-lsp" },
+    dependencies = { "hrsh7th/cmp-nvim-lsp", "williamboman/mason.nvim" },
     config = function()
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
       local servers = { "lua_ls", "ts_ls", "clangd", "rust_analyzer", "pyright", "gopls", "html", "cssls" }
@@ -676,37 +779,42 @@ require("lazy").setup({
       end
 
       vim.lsp.config("clangd", {
-        cmd = { "clangd", "--background-index=false", "--clang-tidy", "--header-insertion=iwyu" },
+        cmd = {
+          "clangd",
+          "--background-index",
+          "--background-index-priority=low",
+          "--clang-tidy",
+          "--header-insertion=iwyu",
+          "--pch-storage=disk",
+          "-j=2",
+        },
       })
 
-      vim.api.nvim_create_user_command("LspDef", vim.lsp.buf.definition, {})
-      vim.api.nvim_create_user_command("LspTypeDef", vim.lsp.buf.type_definition, {})
-      vim.api.nvim_create_user_command("LspImpl", vim.lsp.buf.implementation, {})
-      vim.api.nvim_create_user_command("LspRefs", vim.lsp.buf.references, {})
-      vim.api.nvim_create_user_command("LspHover", vim.lsp.buf.hover, {})
-      vim.api.nvim_create_user_command("LspRename", vim.lsp.buf.rename, {})
-      vim.api.nvim_create_user_command("LspCodeAction", vim.lsp.buf.code_action, {})
+      vim.api.nvim_create_user_command("LspDef", function() vim.lsp.buf.definition() end, {})
+      vim.api.nvim_create_user_command("LspTypeDef", function() vim.lsp.buf.type_definition() end, {})
+      vim.api.nvim_create_user_command("LspImpl", function() vim.lsp.buf.implementation() end, {})
+      vim.api.nvim_create_user_command("LspRefs", function() vim.lsp.buf.references() end, {})
+      vim.api.nvim_create_user_command("LspHover", function() vim.lsp.buf.hover() end, {})
+      vim.api.nvim_create_user_command("LspRename", function(opts)
+        vim.lsp.buf.rename(opts.args ~= "" and opts.args or nil)
+      end, { nargs = "?", desc = "LspRename [new_name]" })
+      vim.api.nvim_create_user_command("LspCodeAction", function() vim.lsp.buf.code_action() end, {})
 
       vim.api.nvim_create_autocmd("LspAttach", {
         callback = function(ev)
-          vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
           local client = vim.lsp.get_client_by_id(ev.data.client_id)
-          if client and client:supports_method("textDocument/codeLens") then
-            vim.lsp.codelens.refresh({ bufnr = ev.buf })
-            local group = vim.api.nvim_create_augroup("CodelensRefresh" .. ev.buf, { clear = true })
-            vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold" }, {
-              group = group,
-              buffer = ev.buf,
-              callback = function()
-                vim.lsp.codelens.refresh({ bufnr = ev.buf })
-              end,
-            })
+          if not client then return end
+          if client:supports_method("textDocument/inlayHint") then
+            vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
+          end
+          if client:supports_method("textDocument/codeLens") then
+            vim.lsp.codelens.enable(true, { bufnr = ev.buf })
           end
         end,
       })
 
       vim.o.updatetime = 400
-      vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
+      vim.api.nvim_create_autocmd("CursorHold", {
         callback = function()
           vim.diagnostic.open_float(nil, {
             focusable = false,
@@ -744,7 +852,7 @@ require("lazy").setup({
           return
         end
         vim.cmd("vimgrep " .. delim .. old .. delim .. "g" .. pat)
-        vim.cmd("cdo %s" .. delim .. old .. delim .. new .. delim .. how .. " | update")
+        vim.cmd("cfdo %s" .. delim .. old .. delim .. new .. delim .. how .. " | update")
       end
       vim.api.nvim_create_user_command("RepPat", function(opts)
         rep_pat(unpack(opts.fargs))
@@ -755,12 +863,7 @@ require("lazy").setup({
   {
     "p00f/clangd_extensions.nvim",
     ft = { "c", "cpp" },
-    opts = {
-      inlay_hints = {
-        inline = true,
-        only_current_line = false,
-      },
-    },
+    opts = {},
   },
 
   {
@@ -949,7 +1052,7 @@ require("lazy").setup({
 
   {
     "mfussenegger/nvim-lint",
-    event = { "BufEnter", "BufWritePost", "InsertLeave" },
+    event = { "BufEnter", "BufWritePost", "TextChanged", "TextChangedI", "InsertLeave" },
     config = function()
       local lint = require("lint")
 
@@ -960,19 +1063,37 @@ require("lazy").setup({
         html = { "vnu" },
       }
 
+      local function available_linters(ft)
+        local names = lint.linters_by_ft[ft]
+        if not names then return nil end
+        local out = {}
+        for _, name in ipairs(names) do
+          local linter = lint.linters[name]
+          local cmd = type(linter) == "table" and linter.cmd or nil
+          if type(cmd) == "function" then cmd = cmd() end
+          if not cmd or vim.fn.executable(cmd) == 1 then
+            table.insert(out, name)
+          end
+        end
+        return #out > 0 and out or nil
+      end
+
       local timer = vim.uv.new_timer()
       local function debounced_lint()
         if vim.bo.buftype ~= "" then return end
-        if not lint.linters_by_ft[vim.bo.filetype] then return end
+        local names = available_linters(vim.bo.filetype)
+        if not names then return end
         timer:stop()
-        timer:start(500, 0, vim.schedule_wrap(function() lint.try_lint() end))
+        timer:start(500, 0, vim.schedule_wrap(function() lint.try_lint(names) end))
       end
 
-      vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "InsertLeave" }, {
+      vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "TextChanged", "TextChangedI", "InsertLeave" }, {
         callback = debounced_lint,
       })
 
-      vim.api.nvim_create_user_command("Lint", lint.try_lint, {})
+      vim.api.nvim_create_user_command("Lint", function()
+        lint.try_lint(available_linters(vim.bo.filetype))
+      end, {})
     end,
   },
 
@@ -1047,7 +1168,7 @@ require("lazy").setup({
     "ggandor/leap.nvim",
     keys = {
       { "s", "<Plug>(leap-forward-to)", mode = { "n", "x", "o" }, desc = "Leap forward to" },
-      { "S", "<Plug>(leap-backward-to)", mode = { "n", "x", "o" }, desc = "Leap backward to" },
+      { "S", "<Plug>(leap-backward-to)", mode = { "n", "o" }, desc = "Leap backward to" },
     },
     config = function()
       require("leap").opts.safe_labels = {}
@@ -1167,8 +1288,11 @@ require("lazy").setup({
     opts = {
       log_level = "error",
       auto_session_suppress_dirs = { "~/", "~/Downloads", "/" },
+      session_lens = { load_on_setup = false },
     },
   },
+
+  { "mfussenegger/nvim-dap-python", lazy = true },
 
   {
     "mfussenegger/nvim-dap",
@@ -1217,7 +1341,7 @@ require("lazy").setup({
       dap.adapters.gdb = {
         type = "executable",
         command = "gdb",
-        args = { "--interpreter=mi" },
+        args = { "--interpreter=dap" },
       }
 
       dap.configurations.cpp = {
@@ -1239,11 +1363,11 @@ require("lazy").setup({
             end
             return executable
           end,
-          cwd = vim.fn.getcwd(),
+          cwd = function() return vim.fn.getcwd() end,
           stopOnEntry = false,
           args = function()
             local input = vim.fn.input("Arguments: ")
-            return vim.split(input, " ")
+            return vim.split(input, "%s+", { trimempty = true })
           end,
         },
       }
@@ -1265,7 +1389,7 @@ require("lazy").setup({
           type = "delve",
           request = "launch",
           program = "${fileDirname}",
-          cwd = vim.fn.getcwd(),
+          cwd = function() return vim.fn.getcwd() end,
           mode = "debug",
           dlvToolPath = "dlv",
         },
@@ -1314,14 +1438,17 @@ require("lazy").setup({
             end
             return executable
           end,
-          cwd = vim.fn.getcwd(),
+          cwd = function() return vim.fn.getcwd() end,
           stopOnEntry = false,
         },
       }
 
-      require("dap-python").setup(
-        vim.fn.stdpath("data") .. "/mason/packages/debugpy/venv/bin/python"
-      )
+      local debugpy = vim.fn.stdpath("data") .. "/mason/packages/debugpy/venv/bin/python"
+      if vim.fn.executable(debugpy) == 1 then
+        require("dap-python").setup(debugpy)
+      else
+        require("dap-python").setup("python3")
+      end
 
       dap.listeners.after.event_initialized["dapui_config"] = function()
         dapui.open()
@@ -1333,16 +1460,16 @@ require("lazy").setup({
         dapui.close()
       end
 
-      vim.api.nvim_create_user_command("DapBreakpoint", dap.toggle_breakpoint, {})
+      vim.api.nvim_create_user_command("DapBreakpoint", function() dap.toggle_breakpoint() end, {})
       vim.api.nvim_create_user_command("DapBreakpointCond", function()
         dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
       end, {})
-      vim.api.nvim_create_user_command("DapContinue", dap.continue, {})
-      vim.api.nvim_create_user_command("DapStepOver", dap.step_over, {})
-      vim.api.nvim_create_user_command("DapStepInto", dap.step_into, {})
-      vim.api.nvim_create_user_command("DapStepOut", dap.step_out, {})
-      vim.api.nvim_create_user_command("DapRepl", dap.repl.open, {})
-      vim.api.nvim_create_user_command("DapUiToggle", dapui.toggle, {})
+      vim.api.nvim_create_user_command("DapContinue", function() dap.continue() end, {})
+      vim.api.nvim_create_user_command("DapStepOver", function() dap.step_over() end, {})
+      vim.api.nvim_create_user_command("DapStepInto", function() dap.step_into() end, {})
+      vim.api.nvim_create_user_command("DapStepOut", function() dap.step_out() end, {})
+      vim.api.nvim_create_user_command("DapRepl", function() dap.repl.open() end, {})
+      vim.api.nvim_create_user_command("DapUiToggle", function() dapui.toggle() end, {})
     end,
   },
 

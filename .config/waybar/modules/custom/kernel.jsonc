@@ -4,7 +4,7 @@
     "interval": 3600,
     "format": "<span rise='500' size='12000'></span> {}",
     "tooltip": false,
-    "on-click": "~/.config/scripts/sysinfo.sh"
+    "on-click": "~/.config/waybar/scripts/system.sh"
   }
 }
 

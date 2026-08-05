@@ -3,7 +3,6 @@
 		"~/.config/waybar/modules/hypr/window.jsonc",
 		"~/.config/waybar/modules/hypr/workspaces.jsonc",
 		"~/.config/waybar/modules/custom/arch.jsonc",
-		"~/.config/waybar/modules/custom/virtmanager.jsonc",
 		"~/.config/waybar/modules/custom/nvim.jsonc",
 		"~/.config/waybar/modules/custom/nowplaying.jsonc",
 		"~/.config/waybar/modules/custom/updates.jsonc",
@@ -31,11 +30,13 @@
 		"custom/nowplaying"
 	],
 	"modules-center": [
-		"custom/clock"
+		"clock"
 	],
 	"modules-right": [
 		"hyprland/window",
 		"custom/big_spacer",
+		"custom/updates",
+		"custom/spacer",
 		"tray",
 		"custom/spacer",
 		"pulseaudio",

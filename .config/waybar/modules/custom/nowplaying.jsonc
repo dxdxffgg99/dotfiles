@@ -1,7 +1,7 @@
 {
 	"custom/nowplaying": {
-		"exec": "playerctl metadata --format '{{title}}' 2>/dev/null | sed -e 's/&/&amp;/g' -e 's/</&lt;/g' -e 's/>/&gt;/g' | awk '{t=$0; if(length(t)>20) t=substr(t,1,20)\"…\"; print \"<span rise=\\\"-1500\\\" size=\\\"14000\\\">󰝚</span> \" t}'",
-		"interval": 5,
+		"exec": "playerctl --follow metadata --format '{{title}}' 2>/dev/null | gawk '{ t=$0; if (t == \"\") { print \"\"; fflush(); next } if (length(t) > 20) t = substr(t, 1, 20) \"…\"; gsub(/&/, \"\\\\&amp;\", t); gsub(/</, \"\\\\&lt;\", t); gsub(/>/, \"\\\\&gt;\", t); print \"<span rise=\\\"-1500\\\" size=\\\"14000\\\">󰝚</span> \" t; fflush() }'",
+		"restart-interval": 5,
 		"tooltip": false
 	}
 }

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+THRESHOLD_MEDIUM=45
+THRESHOLD_HIGH=120
 
 # Pacman updates
 repo=$(checkupdates 2>/dev/null | wc -l)
@@ -17,17 +19,18 @@ else
     flatpak_updates=0
 fi
 
-total=$((repo + aur))
+total=$((repo + aur + flatpak_updates))
 
-if [ "$total" -lt 45 ]; then
-    echo ""
-    exit
+if [ "$total" -lt "$THRESHOLD_MEDIUM" ]; then
+    echo '{"text":"","tooltip":"","class":""}'
+    exit 0
 fi
 
 class="medium"
 
-if [ "$total" -ge 120 ]; then
+if [ "$total" -ge "$THRESHOLD_HIGH" ]; then
     class="high"
 fi
 
-echo "{\"text\":\"󰚰\",\"tooltip\":\"Pacman: $repo\nAUR: $aur\nFlatpak: $flatpak_updates\",\"class\":\"$class\"}"
+printf '{"text":"󰚰","tooltip":"Pacman: %s\\nAUR: %s\\nFlatpak: %s\\nTotal: %s","class":"%s"}\n' \
+    "$repo" "$aur" "$flatpak_updates" "$total" "$class"

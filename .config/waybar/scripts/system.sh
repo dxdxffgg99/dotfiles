@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-
 THEME="$HOME/.config/rofi/system.rasi"
 
+esc() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
 host="$(hostnamectl --static 2>/dev/null || hostname)"
+host="$(printf '%s' "$host" | esc)"
 kernel="$(uname -r)"
 uptime_pretty="$(uptime -p 2>/dev/null | sed 's/^up //')"
 cpu="$(lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
-cpu="${cpu:-Unknown}"
+cpu="$(printf '%s' "${cpu:-Unknown}" | esc)"
 disk="$(df -h / | awk 'NR==2 {print $3 " / " $2 " (" $5 ")"}')"
 mem_total="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)"
 mem_avail="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)"
@@ -18,7 +20,11 @@ if [[ -n "${ip_dev:-}" ]]; then
 fi
 ip_addr="${ip_addr:-N/A}"
 shell_name="$(basename "$SHELL")"
-pkg_count="$(pacman -Qq 2>/dev/null | wc -l || echo 'N/A')"
+if command -v pacman >/dev/null 2>&1; then
+  pkg_count="$(pacman -Qq 2>/dev/null | wc -l)"
+else
+  pkg_count="N/A"
+fi
 
 FG_MAIN="#FFFFFF"
 FG_MUTED="#9AA0AA"

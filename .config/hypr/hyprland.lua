@@ -49,7 +49,7 @@ hl.config({
         },
         blur = {
             enabled  = true,
-            size     = 3,
+            size     = 4,
             passes   = 1,
             vibrancy = 0.5,
             xray     = false,
@@ -82,7 +82,7 @@ hl.config({
         force_zero_scaling = true,
     },
     cursor = {
-        no_hardware_cursors = true,
+        no_hardware_cursors = false,
     },
 })
 
@@ -103,7 +103,6 @@ if hl.plugin.hyprglass then
 
     hg.layer("waybar", { preset = "clear" })
     hg.layer("kitty", { preset = "clear" })
-
 
     hg.preset("clear", {
         glass_opacity = 0.3,
@@ -145,7 +144,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
     hl.exec_cmd("fcitx5")
-    hl.exec_cmd("awww-daemon && awww img ~/.config/wp.png")
     hl.exec_cmd("waybar")
+    hl.exec_cmd("awww-daemon & for _ in $(seq 50); do awww query >/dev/null 2>&1 && break; sleep 0.1; done; awww img ~/.config/wp.png")
     hl.exec_cmd(terminal)
 end)

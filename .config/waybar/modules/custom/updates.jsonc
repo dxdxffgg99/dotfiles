@@ -1,0 +1,9 @@
+{
+	"custom/updates": {
+		"exec": "~/.config/waybar/scripts/checkupdates.sh",
+		"return-type": "json",
+		"interval": 900,
+		"tooltip": true,
+		"on-click": "kitty -e yay -Syu"
+	}
+}

@@ -49,18 +49,24 @@ alias fgrep='grep -F'
 alias reload='clear && source ~/.zshrc'
 alias cd..='cd ..'
 
-zmodload zsh/sched
-sched +0 '
-    source ~/.oh-my-zsh/lib/git.zsh
-    source ~/.oh-my-zsh/plugins/git/git.plugin.zsh
-    source ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
-    source ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-    ZSH_HIGHLIGHT_STYLES[command]="fg=cyan,bold"
-    ZSH_HIGHLIGHT_STYLES[builtin]="fg=blue,bold"
-    ZSH_HIGHLIGHT_STYLES[alias]="fg=magenta,bold"
-    ZSH_HIGHLIGHT_STYLES[single-hyphen-option]="fg=yellow"
-    ZSH_HIGHLIGHT_STYLES[double-hyphen-option]="fg=yellow"
-'
+# Plugins load once per shell. Re-sourcing them (e.g. via `reload`) makes
+# oh-my-zsh's top-level `local _style` in lib/git.zsh echo `_style=''`,
+# and double-registers the syntax-highlighting/autosuggestion widgets.
+if [[ -z "$_ZSH_PLUGINS_LOADED" ]]; then
+    typeset -g _ZSH_PLUGINS_LOADED=1
+    zmodload zsh/sched
+    sched +0 '
+        source ~/.oh-my-zsh/lib/git.zsh
+        source ~/.oh-my-zsh/plugins/git/git.plugin.zsh
+        source ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+        source ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+        ZSH_HIGHLIGHT_STYLES[command]="fg=cyan,bold"
+        ZSH_HIGHLIGHT_STYLES[builtin]="fg=blue,bold"
+        ZSH_HIGHLIGHT_STYLES[alias]="fg=magenta,bold"
+        ZSH_HIGHLIGHT_STYLES[single-hyphen-option]="fg=yellow"
+        ZSH_HIGHLIGHT_STYLES[double-hyphen-option]="fg=yellow"
+    '
+fi
 
 if command -v starship >/dev/null 2>&1; then
     STARSHIP_CACHE="$HOME/.cache/starship-init.zsh"

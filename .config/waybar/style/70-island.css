@@ -1,0 +1,51 @@
+/* ── Dynamic Island ────────────────────────────────────────── */
+
+/* 바 자체는 투명 — 섬만 떠 있게 */
+window#waybar,
+window#waybar.hidden,
+window#waybar.empty,
+window#waybar.solo {
+	background-color: transparent;
+	border: none;
+	border-bottom: none;
+}
+
+/* 세 개의 섬 공통 */
+#island-left,
+#island-center,
+#island-right {
+	background-color: rgba(0, 0, 0, 0.92);
+	border-radius: 12px;
+	padding: 0 10px;
+	margin: 0;
+	min-height: 21px;
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+	transition: background-color 300ms ease, box-shadow 300ms ease;
+}
+
+#island-left:hover,
+#island-center:hover,
+#island-right:hover {
+	background-color: rgba(18, 18, 20, 0.96);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+}
+
+/* 섬 안의 모듈은 배경/밑줄 없이 알약 안에 얹히기만 */
+#island-left widget > *,
+#island-center widget > *,
+#island-right widget > * {
+	background-color: transparent;
+	border-bottom: none;
+	font-size: 12px;
+}
+
+#island-left > widget > *,
+#island-right > widget > * {
+	padding: 0 6px;
+}
+
+#island-center #clock {
+	padding: 0 4px;
+	font-size: 13px;
+	letter-spacing: 0.5px;
+}

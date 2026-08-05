@@ -16,39 +16,22 @@
 		"~/.config/waybar/modules/network.jsonc",
 		"~/.config/waybar/modules/temperature.jsonc",
 		"~/.config/waybar/modules/tray.jsonc",
-		"~/.config/waybar/modules/cpu.jsonc"
+		"~/.config/waybar/modules/cpu.jsonc",
+		"~/.config/waybar/modules/groups.jsonc"
 	],
 	"position": "top",
+	"height": 25,
+	"margin-top": 5,
+	"margin-left": 10,
+	"margin-right": 10,
+	"spacing": 0,
 	"modules-left": [
-		"custom/system",
-		"custom/spacer",
-		"hyprland/workspaces",
-		"custom/spacer",
-		"wlr/taskbar",
-		"custom/spacer",
-		"custom/big_spacer",
-		"custom/nowplaying"
+		"group/island-left"
 	],
 	"modules-center": [
-		"clock"
+		"group/island-center"
 	],
 	"modules-right": [
-		"hyprland/window",
-		"custom/big_spacer",
-		"custom/updates",
-		"custom/spacer",
-		"tray",
-		"custom/spacer",
-		"pulseaudio",
-		"custom/spacer",
-		"network",
-		"custom/spacer",
-		"cpu",
-		"custom/spacer",
-		"memory",
-		"custom/spacer",
-		"battery",
-		"custom/spacer"
+		"group/island-right"
 	]
-	
 }

@@ -86,47 +86,15 @@ hl.config({
     },
 })
 
-hl.config({
-    plugin = {
-        hyprgrass = {
-            sensitivity = 1.0,
-            long_press_delay = 400,
-        },
-        hyprglass = {
-            default_theme = "dark",
-            default_preset = "clear",
-            tint_color = 0x8899aa22,
-            brightness = 0.75,
-            layers = {
-                enabled = 1,
-                namespaces = "kitty",
-                preset = "clear",
-            },
-            dark = { brightness = 0.82 },
-            light = { adaptive_boost = 0.5 },
-        },
-    },
-})
-
--- 3-finger horizontal swipe to switch workspaces
-hl.plugin.hyprgrass.gesture({
-    pattern = { kind = "swipe", fingers = 3, direction = "horizontal" },
-    action = "workspace",
-})
-
--- swipe up from the bottom edge to open the gloview overview
-hl.plugin.hyprgrass.bind({
-    pattern = { kind = "edge", origin = "d", direction = "u" },
-    action = hl.plugin.gloview.toggle,
-})
-
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + C", hl.dsp.window.close())
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen())
-hl.bind(mainMod .. " + TAB", hl.plugin.gloview.toggle)
+if hl.plugin.gloview then
+    hl.bind(mainMod .. " + TAB", hl.plugin.gloview.toggle)
+end
 
 hl.bind(mainMod .. " + SHIFT + left",  hl.dsp.window.move({ direction = "l" }))
 hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.move({ direction = "r" }))

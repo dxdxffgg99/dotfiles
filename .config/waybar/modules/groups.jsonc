@@ -1,18 +1,21 @@
 {
-	// 왼쪽 섬: 커널 + 워크스페이스 + 태스크바
+	// 왼쪽 섬: 런처 + 커널 + 워크스페이스 + 태스크바
 	"group/island-left": {
 		"orientation": "horizontal",
 		"modules": [
+			"custom/arch",
+			"custom/nvim",
 			"custom/system",
 			"hyprland/workspaces",
 			"wlr/taskbar"
 		]
 	},
 
-	// 가운데 섬: 시계
+	// 가운데 섬: 지금 재생 중 + 시계
 	"group/island-center": {
 		"orientation": "horizontal",
 		"modules": [
+			"custom/nowplaying",
 			"clock"
 		]
 	},

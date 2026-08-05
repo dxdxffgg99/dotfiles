@@ -86,30 +86,39 @@ hl.config({
     },
 })
 
-if hl.plugin.hyprglass then
-    local hg = hl.plugin.hyprglass
+hl.config({
+    plugin = {
+        hyprgrass = {
+            sensitivity = 1.0,
+            long_press_delay = 400,
+        },
+        hyprglass = {
+            default_theme = "dark",
+            default_preset = "clear",
+            tint_color = 0x8899aa22,
+            brightness = 0.75,
+            layers = {
+                enabled = 1,
+                namespaces = "kitty",
+                preset = "clear",
+            },
+            dark = { brightness = 0.82 },
+            light = { adaptive_boost = 0.5 },
+        },
+    },
+})
 
-    hg.config({
-        default_theme = "dark",
-        default_preset = "clear",
-        tint_color = 0x8899aa22,
+-- 3-finger horizontal swipe to switch workspaces
+hl.plugin.hyprgrass.gesture({
+    pattern = { kind = "swipe", fingers = 3, direction = "horizontal" },
+    action = "workspace",
+})
 
-        brightness = 0.75,
-        dark = { brightness = 0.82 },
-        light = { adaptive_boost = 0.5 },
-
-        layers = { enabled = 1 },
-    })
-
-    hg.layer("waybar", { preset = "clear" })
-    hg.layer("kitty", { preset = "clear" })
-
-    hg.preset("clear", {
-        glass_opacity = 0.3,
-        blur_strength = 1,
-        dark = { brightness = 0.75 },
-    })
-end
+-- swipe up from the bottom edge to open the gloview overview
+hl.plugin.hyprgrass.bind({
+    pattern = { kind = "edge", origin = "d", direction = "u" },
+    action = hl.plugin.gloview.toggle,
+})
 
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
@@ -117,6 +126,7 @@ hl.bind(mainMod .. " + C", hl.dsp.window.close())
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen())
+hl.bind(mainMod .. " + TAB", hl.plugin.gloview.toggle)
 
 hl.bind(mainMod .. " + SHIFT + left",  hl.dsp.window.move({ direction = "l" }))
 hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.move({ direction = "r" }))
@@ -140,10 +150,15 @@ hl.bind(mainMod .. " + SPACE",   hl.dsp.exec_cmd("ls ~/.local/bin | rofi -dmenu 
 hl.bind(mainMod .. " + insert",  hl.dsp.exec_cmd("grim -g \"$(slurp)\" -t png - | wl-copy -t image/png"))
 hl.bind(mainMod .. " + L",       hl.dsp.exec_cmd("BRV=$(brightnessctl get) && brightnessctl set 25% && hyprlock && brightnessctl set $BRV"))
 
+local volumeNotifyCmd = "VOL=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf \"%d\", $2*100}') && notify-send -r 91190 -h int:value:\"$VOL\" -t 1500 \"Volume: ${VOL}%\""
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && " .. volumeNotifyCmd), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && " .. volumeNotifyCmd),      { locked = true, repeating = true })
+
 hl.on("hyprland.start", function()
     hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
     hl.exec_cmd("fcitx5")
+    hl.exec_cmd("wvkbd-mobintl --hidden -H 400 -L 300")
     hl.exec_cmd("waybar")
     hl.exec_cmd("awww-daemon & for _ in $(seq 50); do awww query >/dev/null 2>&1 && break; sleep 0.1; done; awww img ~/.config/wp.png")
     hl.exec_cmd(terminal)

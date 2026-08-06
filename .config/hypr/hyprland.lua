@@ -86,6 +86,18 @@ hl.config({
     },
 })
 
+hl.curve("easeOutQuint", { type = "bezier", points = { {0.23, 1}, {0.32, 1} } })
+hl.curve("easeOutCubic", { type = "bezier", points = { {0.33, 1}, {0.68, 1} } })
+hl.curve("linear",       { type = "bezier", points = { {0, 0},    {1, 1} } })
+
+hl.animation({ leaf = "windows",    enabled = true, speed = 4, bezier = "easeOutQuint", style = "slide" })
+hl.animation({ leaf = "windowsIn",  enabled = true, speed = 4, bezier = "easeOutQuint", style = "popin 85%" })
+hl.animation({ leaf = "windowsOut", enabled = true, speed = 3, bezier = "linear",       style = "popin 85%" })
+hl.animation({ leaf = "border",     enabled = true, speed = 5, bezier = "easeOutCubic" })
+hl.animation({ leaf = "fade",       enabled = true, speed = 4, bezier = "easeOutCubic" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 4, bezier = "easeOutQuint", style = "slide" })
+hl.animation({ leaf = "layers",     enabled = true, speed = 3, bezier = "easeOutCubic", style = "fade" })
+
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + C", hl.dsp.window.close())
@@ -106,8 +118,8 @@ for i = 1, 9 do
     hl.bind(mainMod .. " + SHIFT + " .. i,   hl.dsp.window.move({ workspace = i }))
 end
 
-hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
+hl.bind(mainMod .. " + right", hl.dsp.focus({ workspace = "e+1" }))
+hl.bind(mainMod .. " + left",   hl.dsp.focus({ workspace = "e-1" }))
 hl.bind(mainMod .. " + mouse:272",  hl.dsp.window.drag())
 hl.bind(mainMod .. " + mouse:273",  hl.dsp.window.resize())
 
@@ -118,7 +130,7 @@ hl.bind(mainMod .. " + SPACE",   hl.dsp.exec_cmd("ls ~/.local/bin | rofi -dmenu 
 hl.bind(mainMod .. " + insert",  hl.dsp.exec_cmd("grim -g \"$(slurp)\" -t png - | wl-copy -t image/png"))
 hl.bind(mainMod .. " + L",       hl.dsp.exec_cmd("BRV=$(brightnessctl get) && brightnessctl set 25% && hyprlock && brightnessctl set $BRV"))
 
-local volumeNotifyCmd = "VOL=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf \"%d\", $2*100}') && notify-send -r 91190 -h int:value:\"$VOL\" -t 1500 \"Volume: ${VOL}%\""
+local volumeNotifyCmd = "VOL=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf \"%d\", $2*100}') && notify-send -r 91190 -h int:value:\"$VOL\" -t 1000 \"Volume: ${VOL}%\""
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && " .. volumeNotifyCmd), { locked = true, repeating = true })
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && " .. volumeNotifyCmd),      { locked = true, repeating = true })
 

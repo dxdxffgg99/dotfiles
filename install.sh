@@ -10,7 +10,7 @@ BACKUP_ROOT=${DOTFILES_BACKUP:-$HOME/.dotfiles-backup}
 STAMP=$(date +%Y%m%d-%H%M%S)
 TAB=$(printf '\t')
 
-ALL_GROUPS="zsh starship wallpaper kitty waybar rofi hypr nvim btop mako fastfetch"
+ALL_GROUPS="zsh starship wallpaper chrome kitty waybar rofi hypr nvim btop mako fastfetch"
 
 ACTION=install
 MODE=link
@@ -58,6 +58,7 @@ pairs_for_group() {
         zsh)       printf '%s\t%s\n' "$REPO/.config/.zshrc"        "$HOME/.zshrc" ;;
         starship)  printf '%s\t%s\n' "$REPO/.config/starship.toml" "$CONFIG/starship.toml" ;;
         wallpaper) printf '%s\t%s\n' "$REPO/.config/wp.png"        "$CONFIG/wp.png" ;;
+        chrome)    printf '%s\t%s\n' "$REPO/.config/chrome-flags.conf" "$CONFIG/chrome-flags.conf" ;;
         *)
             dir="$REPO/.config/$group"
             [ -d "$dir" ] || die "unknown group: $group (try: $ALL_GROUPS)"

@@ -1,7 +1,10 @@
 {
 	"clock": {
-		"interval": 1,
-		"format": "<small>{:%H:%M:%S}</small>",
+		// 초 단위 갱신은 1초마다 바 전체를 다시 그리고 Hyprland 에 damage 를
+		// 넘긴다. 24시간 내내 도는 비용이라 분 단위로 낮춘다.
+		// 초를 다시 보고 싶으면 interval 을 1, format 을 {:%H:%M:%S} 로 되돌리면 된다.
+		"interval": 60,
+		"format": "<small>{:%H:%M}</small>",
 		"tooltip-format": "{:%Y-%m-%d}"
 	}
 }

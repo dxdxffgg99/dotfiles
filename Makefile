@@ -6,7 +6,7 @@ INSTALL := ./install.sh
 # make install NO_BACKUP=1-> replace existing files without backing them up
 FLAGS := $(if $(COPY),--copy) $(if $(DRY_RUN),--dry-run) $(if $(NO_BACKUP),--no-backup)
 
-GROUPS := zsh starship wallpaper kitty waybar rofi hypr nvim btop mako fastfetch
+GROUPS := zsh starship wallpaper chrome kitty waybar rofi hypr nvim btop mako fastfetch
 
 .PHONY: help install copy uninstall status deps check dry-run $(GROUPS)
 

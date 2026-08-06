@@ -123,7 +123,9 @@ hl.bind(mainMod .. " + left",   hl.dsp.focus({ workspace = "e-1" }))
 hl.bind(mainMod .. " + mouse:272",  hl.dsp.window.drag())
 hl.bind(mainMod .. " + mouse:273",  hl.dsp.window.resize())
 
-hl.bind(mainMod .. " + ALT + V", hl.dsp.exec_cmd("vesktop --enable-features=VaapiIgnoreDriverChecks,Vulkan,DefaultANGLEVulkan,VulkanFromANGLE"))
+-- ANGLE-over-Vulkan 은 Tiger Lake iGPU 에서 GL 백엔드보다 유휴 전력을 더 쓴다.
+-- 하드웨어 디코딩만 남기고 Vulkan 경로는 뺀다.
+hl.bind(mainMod .. " + ALT + V", hl.dsp.exec_cmd("vesktop --enable-features=VaapiVideoDecodeLinuxGL,VaapiIgnoreDriverChecks"))
 hl.bind(mainMod .. " + ALT + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + ALT + W", hl.dsp.exec_cmd(browser))
 hl.bind(mainMod .. " + SPACE",   hl.dsp.exec_cmd("ls ~/.local/bin | rofi -dmenu | xargs -I {} setsid -f ~/.local/bin/{}"))
@@ -141,5 +143,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("wvkbd-mobintl --hidden -H 400 -L 300")
     hl.exec_cmd("waybar")
     hl.exec_cmd("awww-daemon & for _ in $(seq 50); do awww query >/dev/null 2>&1 && break; sleep 0.1; done; awww img ~/.config/wp.png")
+    -- 부팅 시점의 전원 상태에 맞춰 주사율을 맞춘다. 이후 전환은
+    -- /etc/udev/rules.d/99-refresh-rate.rules 가 담당한다.
+    hl.exec_cmd("~/.config/hypr/scripts/refresh-rate.sh")
     hl.exec_cmd(terminal)
 end)

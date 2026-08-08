@@ -101,6 +101,7 @@ vim.api.nvim_create_autocmd({ "VimEnter", "BufEnter" }, {
 vim.api.nvim_create_autocmd("DirChanged", {
   callback = function()
     profile_cache = {}
+    apply_profile()
   end,
 })
 
@@ -1078,17 +1079,41 @@ require("lazy").setup({
         return #out > 0 and out or nil
       end
 
-      local timer = vim.uv.new_timer()
+      local lint_timers = {}
       local function debounced_lint()
         if vim.bo.buftype ~= "" then return end
         local names = available_linters(vim.bo.filetype)
         if not names then return end
+
+        local buf = vim.api.nvim_get_current_buf()
+        local timer = lint_timers[buf]
+        if not timer then
+          timer = vim.uv.new_timer()
+          lint_timers[buf] = timer
+        end
         timer:stop()
-        timer:start(500, 0, vim.schedule_wrap(function() lint.try_lint(names) end))
+        timer:start(500, 0, vim.schedule_wrap(function()
+          -- try_lint() always targets nvim_get_current_buf(), so only fire
+          -- while this buffer is still the one the user is looking at.
+          if vim.api.nvim_get_current_buf() == buf then
+            lint.try_lint(names)
+          end
+        end))
       end
 
       vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "TextChanged", "TextChangedI", "InsertLeave" }, {
         callback = debounced_lint,
+      })
+
+      vim.api.nvim_create_autocmd("BufDelete", {
+        callback = function(ev)
+          local timer = lint_timers[ev.buf]
+          if timer then
+            timer:stop()
+            timer:close()
+            lint_timers[ev.buf] = nil
+          end
+        end,
       })
 
       vim.api.nvim_create_user_command("Lint", function()

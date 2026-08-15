@@ -187,9 +187,9 @@ local function run_in_terminal(cmd, ok_msg, err_prefix)
 
   task_term = Terminal:new({
     cmd = cmd,
-    direction = "float",
+    direction = "horizontal",
+    size = 15,
     close_on_exit = false,
-    float_opts = { border = "rounded" },
     on_exit = function(_, _, exit_code)
       if exit_code == 0 then
         vim.notify("✓ " .. ok_msg, vim.log.levels.INFO)
@@ -201,35 +201,26 @@ local function run_in_terminal(cmd, ok_msg, err_prefix)
   task_term:open()
 end
 
--- ccmd (https://codeberg.org/dalmurii/ccmd.vim), ported: CMake configure/build/test helpers
-vim.api.nvim_create_user_command("Cconf", function(opts)
-  run_in_terminal("cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON " .. opts.args)
-end, { nargs = "*", desc = "cmake configure with raw args" })
+local TERM_HEIGHT = 15
 
-vim.api.nvim_create_user_command("Cbuild", function(opts)
-  run_in_terminal("cmake --build " .. opts.args)
-end, { nargs = "*", desc = "cmake --build with raw args" })
+vim.api.nvim_create_user_command("Term", function(opts)
+  vim.cmd("botright " .. TERM_HEIGHT .. "split")
+  vim.cmd("terminal " .. opts.args)
+  vim.cmd("startinsert")
+end, { nargs = "*", desc = "Open a terminal in a bottom split" })
 
-vim.api.nvim_create_user_command("Ctest", function(opts)
-  run_in_terminal("ctest --output-on-failure " .. opts.args)
-end, { nargs = "*", desc = "ctest with raw args" })
+vim.cmd([[
+  cnoreabbrev <expr> term     (getcmdtype() ==# ':' && getcmdline() ==# 'term')     ? 'Term' : 'term'
+  cnoreabbrev <expr> terminal (getcmdtype() ==# ':' && getcmdline() ==# 'terminal') ? 'Term' : 'terminal'
+]])
 
-vim.api.nvim_create_user_command("CConf", function(opts)
-  run_in_terminal("cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B " .. vim.g.CBDir .. " -S " .. vim.g.CSDir
-    .. " " .. opts.args .. " " .. vim.g.CArgConf)
-end, { nargs = "*", desc = "cmake configure using g:CSDir/g:CBDir/g:CArgConf" })
-
-vim.api.nvim_create_user_command("CBuild", function(opts)
-  run_in_terminal("cmake --build " .. vim.g.CBDir .. " " .. opts.args .. " " .. vim.g.CArgBuild)
-end, { nargs = "*", desc = "cmake build using g:CBDir/g:CArgBuild" })
-
-vim.api.nvim_create_user_command("CTest", function(opts)
-  run_in_terminal("ctest --output-on-failure --test-dir " .. vim.g.CBDir .. " " .. opts.args .. " " .. vim.g.CArgTest)
-end, { nargs = "*", desc = "ctest using g:CBDir/g:CArgTest" })
-
--- CLion-style CMake project analysis: discover add_executable() targets,
--- auto-configure on project open / CMakeLists.txt change, and resolve
--- built executables by target name instead of guessing from the filename.
+vim.api.nvim_create_autocmd("TermOpen", {
+  callback = function()
+    vim.opt_local.number = false
+    vim.opt_local.relativenumber = false
+    vim.opt_local.signcolumn = "no"
+  end,
+})
 
 local function find_cmake_files(root)
   local exclude = { [".git"] = true, ["node_modules"] = true, [vim.g.CBDir] = true }
@@ -540,34 +531,6 @@ end
 vim.api.nvim_create_user_command("Build", function() build_file() end, {})
 vim.api.nvim_create_user_command("Run", function() run_file() end, {})
 
-local function cmake_menu()
-  local root = vim.fn.getcwd()
-  local target = get_cmake_target(root)
-  local items = {
-    { label = "Run", action = run_file },
-    { label = "Build", action = build_file },
-    { label = "Debug", action = function() require("dap").continue() end },
-    {
-      label = "Select target" .. (target and (" (current: " .. target .. ")") or ""),
-      action = function()
-        select_cmake_target(function(t)
-          if t then vim.notify("CMake target: " .. t, vim.log.levels.INFO) end
-        end)
-      end,
-    },
-    { label = "Reload CMake project", action = function() cmake_configure(root, "CMake: reloading project...") end },
-  }
-  vim.ui.select(items, {
-    prompt = "CMake",
-    format_item = function(item) return item.label end,
-  }, function(choice)
-    if choice then choice.action() end
-  end)
-end
-
-vim.api.nvim_create_user_command("CMakeMenu", cmake_menu, {})
-vim.keymap.set("n", "<leader>cm", cmake_menu, { desc = "CMake menu (build/run/debug/target)" })
-
 local colorscheme_owner = {
   tokyonight = "tokyonight.nvim",
   catppuccin = "catppuccin",
@@ -730,6 +693,25 @@ require("lazy").setup({
   },
 
   {
+    "nvim-treesitter/nvim-treesitter-context",
+    event = { "BufReadPre", "BufNewFile" },
+    keys = {
+      {
+        "[c",
+        function() require("treesitter-context").go_to_context(vim.v.count1) end,
+        mode = "n",
+        desc = "Jump to context start",
+      },
+    },
+    opts = {
+      max_lines = 3,
+      multiline_threshold = 1,
+      trim_scope = "outer",
+      separator = "─",
+    },
+  },
+
+  {
     "williamboman/mason.nvim",
     build = ":MasonUpdate",
     cmd = { "Mason", "MasonUpdate", "MasonInstall", "MasonUninstall", "MasonUninstallAll", "MasonLog" },
@@ -739,7 +721,6 @@ require("lazy").setup({
       require("mason").setup()
       require("mason-tool-installer").setup({
         ensure_installed = {
-          -- LSP servers (matches the `servers` list in nvim-lspconfig below)
           "lua-language-server",
           "typescript-language-server",
           "clangd",
@@ -748,9 +729,11 @@ require("lazy").setup({
           "gopls",
           "html-lsp",
           "css-lsp",
-          -- Linters (nvim-lint)
           "ruff",
-          -- DAP adapters (nvim-dap)
+          "stylua",
+          "clang-format",
+          "prettier",
+          "goimports",
           "codelldb",
           "delve",
           "debugpy",
@@ -759,6 +742,18 @@ require("lazy").setup({
         run_on_start = true,
       })
     end,
+  },
+
+  {
+    "folke/lazydev.nvim",
+    ft = "lua",
+    cmd = "LazyDev",
+    opts = {
+      library = {
+        { path = "${3rd}/luv/library", words = { "vim%.uv" } },
+        { path = "lazy.nvim", words = { "LazySpec" } },
+      },
+    },
   },
 
   {
@@ -873,14 +868,17 @@ require("lazy").setup({
   },
 
   {
-    "pboettch/vim-cmake-syntax",
-    ft = { "cmake" },
-  },
-
-  {
     "3rd/image.nvim",
-    build = "luarocks --local install magick",
+    build = false,
     ft = { "markdown", "norg", "typst" },
+    event = {
+      "BufReadPre *.png",
+      "BufReadPre *.jpg",
+      "BufReadPre *.jpeg",
+      "BufReadPre *.gif",
+      "BufReadPre *.webp",
+      "BufReadPre *.avif",
+    },
     opts = {
       backend = "kitty",
       integrations = {
@@ -897,8 +895,6 @@ require("lazy").setup({
       { "<leader>e", "<cmd>NvimTreeToggle<cr>", desc = "Toggle file explorer" },
     },
     init = function()
-      -- cmd/keys lazy-loading means nvim-tree never loads on plain `nvim <dir>`;
-      -- open it explicitly when the startup arg is a directory.
       vim.api.nvim_create_autocmd("VimEnter", {
         callback = function(data)
           if vim.fn.isdirectory(data.file) == 0 then
@@ -916,7 +912,14 @@ require("lazy").setup({
 
   {
     "nvim-telescope/telescope.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      {
+        "nvim-telescope/telescope-fzf-native.nvim",
+        build = "make",
+        cond = function() return vim.fn.executable("make") == 1 end,
+      },
+    },
     cmd = "Telescope",
     keys = {
       { "<leader>ff", function() require("telescope.builtin").find_files() end, desc = "Find files" },
@@ -924,6 +927,20 @@ require("lazy").setup({
       { "<leader>fb", function() require("telescope.builtin").buffers() end, desc = "Buffers" },
       { "<leader>fh", function() require("telescope.builtin").help_tags() end, desc = "Help tags" },
     },
+    config = function()
+      local telescope = require("telescope")
+      telescope.setup({
+        extensions = {
+          fzf = {
+            fuzzy = true,
+            override_generic_sorter = true,
+            override_file_sorter = true,
+            case_mode = "smart_case",
+          },
+        },
+      })
+      pcall(telescope.load_extension, "fzf")
+    end,
   },
 
   {
@@ -953,6 +970,7 @@ require("lazy").setup({
           ["<CR>"] = cmp.mapping.confirm({ select = true }),
         }),
         sources = cmp.config.sources({
+          { name = "lazydev", group_index = 0 },
           { name = "nvim_lsp" },
           { name = "luasnip" },
           { name = "buffer" },
@@ -1028,7 +1046,29 @@ require("lazy").setup({
   {
     "catgoose/nvim-colorizer.lua",
     event = { "BufReadPre", "BufNewFile" },
-    config = function() require("colorizer").setup() end,
+    config = function()
+      require("colorizer").setup({
+        filetypes = {
+          "*",
+          css = { parsers = { css = true, css_fn = true } },
+          scss = { parsers = { css = true, css_fn = true } },
+          less = { parsers = { css = true, css_fn = true } },
+          html = {
+            parsers = { css = true, css_fn = true, tailwind = { enable = true } },
+          },
+          javascript = { parsers = { css_fn = true, tailwind = { enable = true } } },
+          javascriptreact = { parsers = { css_fn = true, tailwind = { enable = true } } },
+          typescript = { parsers = { css_fn = true, tailwind = { enable = true } } },
+          typescriptreact = { parsers = { css_fn = true, tailwind = { enable = true } } },
+        },
+        options = {
+          parsers = {
+            hex = { default = true, rrggbbaa = true },
+          },
+          display = { mode = "background" },
+        },
+      })
+    end,
   },
 
   {
@@ -1049,6 +1089,76 @@ require("lazy").setup({
         long_message_to_split = true,
       },
     },
+  },
+
+  {
+    "stevearc/conform.nvim",
+    event = { "BufWritePre" },
+    cmd = { "ConformInfo", "Format", "FormatEnable", "FormatDisable" },
+    keys = {
+      {
+        "<leader>cf",
+        function() require("conform").format({ async = true, lsp_format = "fallback" }) end,
+        mode = { "n", "x" },
+        desc = "Format buffer/selection",
+      },
+    },
+    config = function()
+      local conform = require("conform")
+
+      conform.setup({
+        formatters_by_ft = {
+          lua = { "stylua" },
+          python = { "ruff_organize_imports", "ruff_format" },
+          c = { "clang_format" },
+          cpp = { "clang_format" },
+          rust = { "rustfmt" },
+          go = { "goimports", "gofmt" },
+          javascript = { "prettier" },
+          javascriptreact = { "prettier" },
+          typescript = { "prettier" },
+          typescriptreact = { "prettier" },
+          html = { "prettier" },
+          css = { "prettier" },
+          json = { "prettier" },
+          jsonc = { "prettier" },
+          yaml = { "prettier" },
+          markdown = { "prettier" },
+        },
+        default_format_opts = { lsp_format = "fallback" },
+        format_on_save = function(buf)
+          if vim.g.disable_autoformat or vim.b[buf].disable_autoformat then
+            return nil
+          end
+          return { timeout_ms = 1000, lsp_format = "fallback" }
+        end,
+      })
+
+      vim.api.nvim_create_user_command("Format", function(opts)
+        local range = nil
+        if opts.count ~= -1 then
+          local end_line = vim.api.nvim_buf_get_lines(0, opts.line2 - 1, opts.line2, true)[1]
+          range = {
+            start = { opts.line1, 0 },
+            ["end"] = { opts.line2, end_line:len() },
+          }
+        end
+        conform.format({ async = true, lsp_format = "fallback", range = range })
+      end, { range = true, desc = "Format buffer or [range]" })
+
+      vim.api.nvim_create_user_command("FormatDisable", function(opts)
+        if opts.bang then
+          vim.b.disable_autoformat = true
+        else
+          vim.g.disable_autoformat = true
+        end
+      end, { bang = true, desc = "Disable format-on-save (! = this buffer only)" })
+
+      vim.api.nvim_create_user_command("FormatEnable", function()
+        vim.b.disable_autoformat = false
+        vim.g.disable_autoformat = false
+      end, { desc = "Re-enable format-on-save" })
+    end,
   },
 
   {
@@ -1093,8 +1203,6 @@ require("lazy").setup({
         end
         timer:stop()
         timer:start(500, 0, vim.schedule_wrap(function()
-          -- try_lint() always targets nvim_get_current_buf(), so only fire
-          -- while this buffer is still the one the user is looking at.
           if vim.api.nvim_get_current_buf() == buf then
             lint.try_lint(names)
           end
@@ -1250,19 +1358,23 @@ require("lazy").setup({
         return string.format("#%02x%02x%02x", r, g, b)
       end
 
+      local alphas = { 0.03, 0.05, 0.07, 0.09, 0.12, 0.14, 0.16 }
+
       local hl_groups = {}
-      for i = 1, 7 do
+      for i = 1, #alphas do
         table.insert(hl_groups, "IndentColorizer" .. i)
       end
 
       local function setup_colors()
         local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
         local bg = normal.bg and string.format("#%06x", normal.bg) or "#1e1e2e"
-        local fg = normal.fg and string.format("#%06x", normal.fg) or "#cdd6f4"
+
+        local r, g, b = hex_to_rgb(bg)
+        local luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        local overlay = luminance < 0.5 and "#ffffff" or "#000000"
 
         for i, name in ipairs(hl_groups) do
-          local alpha = 0.03 + (i - 1) * 0.025
-          vim.api.nvim_set_hl(0, name, { bg = blend(fg, bg, alpha) })
+          vim.api.nvim_set_hl(0, name, { bg = blend(overlay, bg, alphas[i]) })
         end
       end
 
@@ -1325,6 +1437,7 @@ require("lazy").setup({
       "rcarriga/nvim-dap-ui",
       "nvim-neotest/nvim-nio",
       "mfussenegger/nvim-dap-python",
+      "theHamsta/nvim-dap-virtual-text",
     },
     keys = {
       { "<leader>db", function() require("dap").toggle_breakpoint() end, desc = "Toggle breakpoint" },
@@ -1338,6 +1451,12 @@ require("lazy").setup({
     config = function()
       local dap = require("dap")
       local dapui = require("dapui")
+
+      require("nvim-dap-virtual-text").setup({
+        virt_text_pos = "eol",
+        commented = true,
+        highlight_changed_variables = true,
+      })
 
       dapui.setup({
         icons = { expanded = "▾", collapsed = "▸" },
@@ -1511,7 +1630,7 @@ require("lazy").setup({
       local wk = require("which-key")
       wk.setup(opts)
       wk.add({
-        { "<leader>c", group = "cmake" },
+        { "<leader>c", group = "code/claude" },
         { "<leader>d", group = "debug" },
         { "<leader>f", group = "find" },
         { "<leader>g", group = "git" },
@@ -1576,6 +1695,50 @@ require("lazy").setup({
       { "<leader>gc", "<cmd>Neogit commit<cr>", desc = "Neogit commit" },
     },
     opts = { integrations = { diffview = true, telescope = true } },
+  },
+
+  {
+    "greggh/claude-code.nvim",
+    dependencies = { "nvim-lua/plenary.nvim" },
+    cmd = { "ClaudeCode", "ClaudeCodeContinue", "ClaudeCodeResume", "ClaudeCodeVerbose" },
+    keys = {
+
+      { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Claude Code toggle" },
+      { "<leader>cC", "<cmd>ClaudeCodeContinue<cr>", desc = "Claude Code (continue)" },
+      { "<leader>cr", "<cmd>ClaudeCodeResume<cr>", desc = "Claude Code (resume)" },
+      { "<leader>cV", "<cmd>ClaudeCodeVerbose<cr>", desc = "Claude Code (verbose)" },
+      { "<C-,>", "<cmd>ClaudeCode<cr>", mode = { "n", "t" }, desc = "Claude Code toggle" },
+    },
+    opts = {
+      window = {
+        split_ratio = 0.35,
+        position = "botright",
+        enter_insert = true,
+        hide_numbers = true,
+        hide_signcolumn = true,
+      },
+
+      refresh = {
+        enable = true,
+        updatetime = 100,
+        timer_interval = 1000,
+        show_notifications = true,
+      },
+
+      git = { use_git_root = true },
+      keymaps = {
+        toggle = {
+          normal = "<C-,>",
+          terminal = "<C-,>",
+          variants = {
+            continue = "<leader>cC",
+            verbose = "<leader>cV",
+          },
+        },
+        window_navigation = true,
+        scrolling = true,
+      },
+    },
   },
 
 }, {

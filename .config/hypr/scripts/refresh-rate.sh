@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -u
 
 MONITOR="eDP-1"
@@ -18,7 +17,7 @@ if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
         fi
     done
 fi
-[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || exit 0 
+[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || exit 0   # no session, nothing to do
 
 on_ac() {
     for supply in /sys/class/power_supply/*; do

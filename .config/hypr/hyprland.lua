@@ -26,7 +26,7 @@ local browser     = "google-chrome-stable"
 hl.config({
     general = {
         gaps_in          = 5,
-        gaps_out         = 20,
+        gaps_out         = 5,
         border_size      = 2,
         resize_on_border = true,
         allow_tearing    = false,
@@ -104,6 +104,7 @@ hl.bind(mainMod .. " + C", hl.dsp.window.close())
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen())
+
 if hl.plugin.gloview then
     hl.bind(mainMod .. " + TAB", hl.plugin.gloview.toggle)
 end

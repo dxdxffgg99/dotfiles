@@ -10,8 +10,8 @@ configuration {
     background: #12131fdd;
     background-alt: #171a2dff;
     foreground: #d7d9f5ff;
-    selected: #33ccffee;
-    active: #00ff99ee;
+    selected: #a8d8ffee;
+    active: #baffc9ee;
     urgent: #ff90a8cc;
 }
 

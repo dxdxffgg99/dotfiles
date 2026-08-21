@@ -32,7 +32,7 @@ alias -g ....='../../..'
 alias -g .....='../../../..'
 alias -g ......='../../../../..'
 for i in {1..9}; do alias "$i"="cd -$i"; done; unset i
-alias _='sudo '
+alias _='sudo'
 alias md='mkdir -p'
 alias rd=rmdir
 alias history='fc -l 1'
@@ -49,9 +49,6 @@ alias fgrep='grep -F'
 alias reload='clear && source ~/.zshrc'
 alias cd..='cd ..'
 
-# Plugins load once per shell. Re-sourcing them (e.g. via `reload`) makes
-# oh-my-zsh's top-level `local _style` in lib/git.zsh echo `_style=''`,
-# and double-registers the syntax-highlighting/autosuggestion widgets.
 if [[ -z "$_ZSH_PLUGINS_LOADED" ]]; then
     typeset -g _ZSH_PLUGINS_LOADED=1
     zmodload zsh/sched

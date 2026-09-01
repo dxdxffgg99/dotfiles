@@ -131,6 +131,29 @@ vim.api.nvim_create_autocmd({ "ColorScheme", "VimEnter" }, {
   end,
 })
 
+local in_kitty = vim.env.TERM == "xterm-kitty" or vim.env.KITTY_WINDOW_ID ~= nil
+
+if in_kitty then
+  local transparent_groups = {
+    "Normal", "NormalNC", "NormalFloat", "FloatBorder",
+    "SignColumn", "EndOfBuffer", "LineNr", "CursorLineNr",
+    "VertSplit", "WinSeparator", "Pmenu",
+    "TabLine", "TabLineSel", "TabLineFill",
+  }
+  -- nvim_set_hl은 넘기지 않은 속성을 지운다. bg만 걷어내고 fg/스타일은 보존할 것.
+  vim.api.nvim_create_autocmd({ "ColorScheme", "VimEnter" }, {
+    callback = function()
+      for _, group in ipairs(transparent_groups) do
+        local hl = vim.api.nvim_get_hl(0, { name = group, link = false })
+        hl.bg = nil
+        hl.ctermbg = nil
+        hl.default = nil -- default=true를 넘기면 덮어쓰기가 무시된다
+        vim.api.nvim_set_hl(0, group, hl)
+      end
+    end,
+  })
+end
+
 local function setup_cmake_compile_commands()
   local root = vim.fn.getcwd()
   local build_dirs = { "build", "Build", "cmake-build-debug", "cmake-build-release" }
@@ -1238,9 +1261,14 @@ require("lazy").setup({
       require("bufferline").setup({
         options = {
           diagnostics = "nvim_lsp",
-          separator_style = "slant",
+          separator_style = in_kitty and { "▏", "▏" } or "slant",
+          indicator = { style = in_kitty and "underline" or "icon" },
           always_show_bufferline = true,
         },
+      })
+
+      vim.api.nvim_create_autocmd("ColorScheme", {
+        callback = function() vim.schedule(clear_bufferline_bg) end,
       })
     end,
   },
@@ -1358,7 +1386,8 @@ require("lazy").setup({
         return string.format("#%02x%02x%02x", r, g, b)
       end
 
-      local alphas = { 0.03, 0.05, 0.07, 0.09, 0.12, 0.14, 0.16 }
+      -- 배경 블록(bg)은 투명 배경과 같이 갈 수 없다. VSCode처럼 얇은 세로선을 fg로 그린다.
+      local alphas = { 0.0, 0.15, 0.30, 0.45, 0.60, 0.75, 0.90 }
 
       local hl_groups = {}
       for i = 1, #alphas do
@@ -1366,15 +1395,17 @@ require("lazy").setup({
       end
 
       local function setup_colors()
-        local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
-        local bg = normal.bg and string.format("#%06x", normal.bg) or "#1e1e2e"
+        local function hl_fg(name, fallback)
+          local hl = vim.api.nvim_get_hl(0, { name = name, link = false })
+          return hl.fg and string.format("#%06x", hl.fg) or fallback
+        end
 
-        local r, g, b = hex_to_rgb(bg)
-        local luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        local overlay = luminance < 0.5 and "#ffffff" or "#000000"
+        -- 깊어질수록 흐린 색(Comment)에서 본문 색(Normal) 쪽으로 밝아진다
+        local base = hl_fg("Comment", "#565f89")
+        local top = hl_fg("Normal", "#c0caf5")
 
         for i, name in ipairs(hl_groups) do
-          vim.api.nvim_set_hl(0, name, { bg = blend(overlay, bg, alphas[i]) })
+          vim.api.nvim_set_hl(0, name, { fg = blend(top, base, alphas[i]) })
         end
       end
 
@@ -1385,11 +1416,12 @@ require("lazy").setup({
 
       require("ibl").setup({
         indent = {
-          char = "",
+          char = "▏",
           highlight = hl_groups,
         },
         whitespace = {
           highlight = hl_groups,
+          remove_blankline_trail = true,
         },
         scope = { enabled = false },
       })
@@ -1739,6 +1771,13 @@ require("lazy").setup({
         scrolling = true,
       },
     },
+  },
+
+  {
+    "vyfor/cord.nvim",
+    build = ":Cord update",
+    event = "VeryLazy",
+    opts = {},
   },
 
 }, {

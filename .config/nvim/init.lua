@@ -3,7 +3,7 @@ vim.loader.enable()
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 
 if not vim.uv.fs_stat(lazypath) then
-  vim.fn.system({
+  local out = vim.fn.system({
     "git",
     "clone",
     "--filter=blob:none",
@@ -11,6 +11,10 @@ if not vim.uv.fs_stat(lazypath) then
     "--branch=stable",
     lazypath,
   })
+  if vim.v.shell_error ~= 0 then
+    vim.api.nvim_echo({ { "Failed to clone lazy.nvim:\n", "ErrorMsg" }, { out, "WarningMsg" } }, true, {})
+    return
+  end
 end
 
 vim.opt.rtp:prepend(lazypath)
@@ -20,15 +24,15 @@ vim.opt.mouse = "a"
 vim.opt.signcolumn = "yes"
 vim.opt.termguicolors = true
 vim.opt.clipboard = "unnamedplus"
-vim.opt.fileencodings = "utf-8,euc-kr"
+vim.opt.fileencodings = "ucs-bom,utf-8,cp949,latin1"
 vim.opt.tabstop = 2
 vim.opt.shiftwidth = 2
 vim.opt.expandtab = true
 vim.opt.swapfile = false
 vim.opt.undofile = true
-vim.opt.shortmess:append("I")
 vim.opt.shortmess:append("c")
 vim.opt.cmdheight = 0
+vim.opt.updatetime = 400
 vim.g.mapleader = " "
 
 vim.g.loaded_netrw = 1
@@ -48,60 +52,102 @@ vim.diagnostic.config({
   },
 })
 
-local function get_profile()
-  local ext = vim.fn.expand("%:e")
-  if ext == "cpp" or ext == "hpp" or ext == "cc" or ext == "cxx" or ext == "h" or ext == "c" then
-    return "cpp"
-  end
-  if ext == "rs" then
-    return "rust"
-  end
-  if ext == "py" then
-    return "python"
+if vim.fn.executable("fcitx5-remote") == 1 then
+  local ime_group = vim.api.nvim_create_augroup("ImeAutoSwitch", { clear = true })
+
+  local function ime_off()
+    local state = vim.system({ "fcitx5-remote" }, { text = true }):wait()
+    vim.b.ime_was_active = vim.trim(state.stdout or "") == "2"
+    if vim.b.ime_was_active then
+      vim.system({ "fcitx5-remote", "-c" }):wait()
+    end
   end
 
-  local cwd = vim.fn.getcwd()
-  local function exists(file)
-    return vim.fn.filereadable(cwd .. "/" .. file) == 1
+  local function ime_restore()
+    if vim.b.ime_was_active then
+      vim.system({ "fcitx5-remote", "-o" }):wait()
+    end
   end
 
-  if exists("CMakeLists.txt") then return "cpp" end
-  if exists("Cargo.toml") then return "rust" end
-  if exists("package.json") then return "web" end
-  if exists("pyproject.toml") or exists("requirements.txt") then return "python" end
-  return "default"
+  vim.api.nvim_create_autocmd({ "InsertLeave", "TermLeave" }, { group = ime_group, callback = ime_off })
+  vim.api.nvim_create_autocmd({ "InsertEnter", "TermEnter" }, { group = ime_group, callback = ime_restore })
+  vim.api.nvim_create_autocmd("CmdlineLeave", {
+    group = ime_group,
+    pattern = { ":", "/", "?" },
+    callback = function()
+      vim.system({ "fcitx5-remote", "-c" }):wait()
+    end,
+  })
+end
+
+local profile_by_ext = {
+  c = "cpp", h = "cpp", cc = "cpp", cpp = "cpp", cxx = "cpp", hpp = "cpp",
+  rs = "rust",
+  py = "python",
+}
+local profile_markers = { "CMakeLists.txt", "Cargo.toml", "package.json", "pyproject.toml", "requirements.txt" }
+local profile_by_marker = {
+  ["CMakeLists.txt"] = "cpp",
+  ["Cargo.toml"] = "rust",
+  ["package.json"] = "web",
+  ["pyproject.toml"] = "python",
+  ["requirements.txt"] = "python",
+}
+
+local function get_profile(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+  local name = vim.api.nvim_buf_get_name(buf)
+  local by_ext = profile_by_ext[vim.fn.fnamemodify(name, ":e")]
+  if by_ext then return by_ext end
+
+  local start = (name ~= "" and vim.bo[buf].buftype == "") and vim.fs.dirname(name) or vim.fn.getcwd()
+  local found = vim.fs.find(profile_markers, { upward = true, path = start, stop = vim.uv.os_homedir(), limit = 1 })[1]
+  return found and profile_by_marker[vim.fs.basename(found)] or "default"
 end
 
 local profile_cache = {}
 
-local function apply_profile()
-  local profile = get_profile()
-  profile_cache[vim.api.nvim_get_current_buf()] = profile
-  if profile == "cpp" or profile == "rust" or profile == "python" then
-    vim.opt.tabstop = 4
-    vim.opt.shiftwidth = 4
-  else
-    vim.opt.tabstop = 2
-    vim.opt.shiftwidth = 2
-  end
-end
-
 local function cached_profile()
   local buf = vim.api.nvim_get_current_buf()
   if profile_cache[buf] == nil then
-    profile_cache[buf] = get_profile()
+    profile_cache[buf] = get_profile(buf)
   end
   return profile_cache[buf]
 end
 
-vim.api.nvim_create_autocmd({ "VimEnter", "BufEnter" }, {
-  callback = apply_profile,
+local function detect_indent(buf)
+  local counts = {}
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, math.min(vim.api.nvim_buf_line_count(buf), 500), false)
+  for _, line in ipairs(lines) do
+    local lead = line:match("^( +)%S")
+    if lead and #lead <= 8 then
+      counts[#lead] = (counts[#lead] or 0) + 1
+    end
+  end
+  local total = 0
+  for _, c in pairs(counts) do total = total + c end
+  if total < 3 then return nil end
+  if (counts[2] or 0) >= math.max(2, total * 0.05) then return 2 end
+  if (counts[4] or 0) > 0 then return 4 end
+  if (counts[8] or 0) > 0 then return 8 end
+  return nil
+end
+
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+  callback = function(ev)
+    if vim.bo[ev.buf].buftype ~= "" then return end
+    local profile = get_profile(ev.buf)
+    profile_cache[ev.buf] = profile
+    local width = detect_indent(ev.buf)
+      or ((profile == "cpp" or profile == "rust" or profile == "python") and 4 or 2)
+    vim.bo[ev.buf].tabstop = width
+    vim.bo[ev.buf].shiftwidth = width
+  end,
 })
 
-vim.api.nvim_create_autocmd("DirChanged", {
+vim.api.nvim_create_autocmd({ "DirChanged", "BufFilePost" }, {
   callback = function()
     profile_cache = {}
-    apply_profile()
   end,
 })
 
@@ -111,22 +157,13 @@ vim.api.nvim_create_autocmd("BufDelete", {
   end,
 })
 
-vim.api.nvim_create_autocmd({ "ColorScheme", "VimEnter" }, {
+vim.api.nvim_create_autocmd("ColorScheme", {
   callback = function()
-    local groups = {
-      "NvimTreeGitDirty",
-      "NvimTreeGitStaged",
-      "NvimTreeGitMerge",
-      "NvimTreeGitRenamed",
-      "NvimTreeGitNew",
-      "NvimTreeGitDeleted",
-      "NvimTreeDiagnosticError",
-      "NvimTreeDiagnosticWarn",
-      "NvimTreeDiagnosticInfo",
-      "NvimTreeDiagnosticHint",
-    }
-    for _, group in ipairs(groups) do
-      vim.api.nvim_set_hl(0, group, { underline = false })
+    for _, s in ipairs({ "Deleted", "Dirty", "Ignored", "Merge", "New", "Renamed", "Staged" }) do
+      local legacy = "NvimTreeGit" .. s
+      if not vim.tbl_isempty(vim.api.nvim_get_hl(0, { name = legacy })) then
+        vim.api.nvim_set_hl(0, legacy .. "Icon", { link = legacy })
+      end
     end
   end,
 })
@@ -140,14 +177,13 @@ if in_kitty then
     "VertSplit", "WinSeparator", "Pmenu",
     "TabLine", "TabLineSel", "TabLineFill",
   }
-  -- nvim_set_hl은 넘기지 않은 속성을 지운다. bg만 걷어내고 fg/스타일은 보존할 것.
   vim.api.nvim_create_autocmd({ "ColorScheme", "VimEnter" }, {
     callback = function()
       for _, group in ipairs(transparent_groups) do
         local hl = vim.api.nvim_get_hl(0, { name = group, link = false })
         hl.bg = nil
         hl.ctermbg = nil
-        hl.default = nil -- default=true를 넘기면 덮어쓰기가 무시된다
+        hl.default = nil
         vim.api.nvim_set_hl(0, group, hl)
       end
     end,
@@ -190,47 +226,20 @@ vim.g.CArgConf = vim.g.CArgConf or ""
 vim.g.CArgBuild = vim.g.CArgBuild or ""
 vim.g.CArgTest = vim.g.CArgTest or ""
 
-local task_term = nil
-
-local function run_in_terminal(cmd, ok_msg, err_prefix)
-  ok_msg = ok_msg or cmd
-  err_prefix = err_prefix or cmd
-  local ok = pcall(require, "toggleterm")
-  if not ok then
-    vim.cmd("botright split | terminal " .. cmd)
-    return
-  end
-
-  local Terminal = require("toggleterm.terminal").Terminal
-
-  if task_term then
-    pcall(function() task_term:shutdown() end)
-    task_term = nil
-  end
-
-  task_term = Terminal:new({
-    cmd = cmd,
-    direction = "horizontal",
-    size = 15,
-    close_on_exit = false,
-    on_exit = function(_, _, exit_code)
-      if exit_code == 0 then
-        vim.notify("✓ " .. ok_msg, vim.log.levels.INFO)
-      else
-        vim.notify("✗ " .. err_prefix .. " (exit " .. exit_code .. ")", vim.log.levels.ERROR)
-      end
-    end,
+local function run_in_terminal(cmd, ok_msg, err_prefix, opts)
+  opts = opts or {}
+  require("ui").panel.run(cmd, {
+    ok_msg = ok_msg or cmd,
+    err_msg = err_prefix or cmd,
+    quickfix = opts.quickfix,
+    efm = opts.efm,
+    title = opts.title,
   })
-  task_term:open()
 end
 
-local TERM_HEIGHT = 15
-
 vim.api.nvim_create_user_command("Term", function(opts)
-  vim.cmd("botright " .. TERM_HEIGHT .. "split")
-  vim.cmd("terminal " .. opts.args)
-  vim.cmd("startinsert")
-end, { nargs = "*", desc = "Open a terminal in a bottom split" })
+  require("ui").panel.new_terminal(opts.args ~= "" and opts.args or nil)
+end, { nargs = "*", desc = "Open a terminal in the bottom panel" })
 
 vim.cmd([[
   cnoreabbrev <expr> term     (getcmdtype() ==# ':' && getcmdline() ==# 'term')     ? 'Term' : 'term'
@@ -385,7 +394,7 @@ local function cmake_configure(root, start_msg)
       if result.code == 0 then
         vim.notify("✓ CMake configured", vim.log.levels.INFO)
         setup_cmake_compile_commands()
-        pcall(vim.cmd, "LspRestart clangd")
+        pcall(vim.cmd, "lsp restart clangd")
       else
         vim.notify("✗ CMake configure failed:\n" .. (result.stderr or ""), vim.log.levels.ERROR)
       end
@@ -393,10 +402,17 @@ local function cmake_configure(root, start_msg)
   )
 end
 
+local function is_cmake_root(dir)
+  if vim.fn.filereadable(dir .. "/CMakeLists.txt") == 0 then return false end
+  local parent = vim.fs.dirname(dir)
+  return parent == dir or vim.fn.filereadable(parent .. "/CMakeLists.txt") == 0
+end
+
 vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {
   callback = function()
     local root = vim.fn.getcwd()
-    if vim.fn.filereadable(root .. "/CMakeLists.txt") == 1 and not has_compile_commands(root) then
+    if vim.bo.filetype:match("^git") then return end
+    if is_cmake_root(root) and not has_compile_commands(root) then
       cmake_configure(root)
     end
   end,
@@ -404,8 +420,11 @@ vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {
 
 vim.api.nvim_create_autocmd("BufWritePost", {
   pattern = "CMakeLists.txt",
-  callback = function()
-    cmake_configure(vim.fn.getcwd(), "CMake: reconfiguring (CMakeLists.txt changed)...")
+  callback = function(ev)
+    local root = vim.fn.getcwd()
+    local file = vim.fn.fnamemodify(ev.file, ":p")
+    if not is_cmake_root(root) or not vim.startswith(file, root .. "/") then return end
+    cmake_configure(root, "CMake: reconfiguring (CMakeLists.txt changed)...")
   end,
 })
 
@@ -467,6 +486,12 @@ local function get_run_command()
   end
 
   if ext == "py" then
+    for _, venv in ipairs({ ".venv", "venv" }) do
+      local python = root .. "/" .. venv .. "/bin/python"
+      if vim.fn.executable(python) == 1 then
+        return vim.fn.shellescape(python) .. " " .. filepath_esc
+      end
+    end
     return "python3 " .. filepath_esc
   end
 
@@ -491,11 +516,13 @@ local function build_file()
 
   if is_cpp_ext(ext) and vim.fn.filereadable(root .. "/CMakeLists.txt") == 1 then
     local function do_build(target)
-      local build_args = target and (vim.g.CBDir .. " --target " .. target) or vim.g.CBDir
+      local build_args = vim.fn.shellescape(vim.g.CBDir)
+        .. (target and (" --target " .. vim.fn.shellescape(target)) or "")
       run_in_terminal(
         "cmake --build " .. build_args .. " " .. vim.g.CArgBuild,
         "Build successful",
-        "Build failed"
+        "Build failed",
+        { quickfix = true, title = "cmake --build" .. (target and (" " .. target) or "") }
       )
     end
 
@@ -515,7 +542,7 @@ local function build_file()
     vim.notify("Build not supported for: " .. ext, vim.log.levels.WARN)
     return
   end
-  run_in_terminal(cmd, "Build successful", "Build failed")
+  run_in_terminal(cmd, "Build successful", "Build failed", { quickfix = true })
 end
 
 local function run_file()
@@ -621,6 +648,7 @@ require("lazy").setup({
       local ensure_installed = {
         "lua", "vim", "vimdoc", "query", "javascript", "typescript", "tsx",
         "html", "css", "json", "c", "cpp", "rust", "python", "go",
+        "markdown", "markdown_inline", "regex", "bash",
       }
 
       local warned = false
@@ -650,11 +678,14 @@ require("lazy").setup({
       local function start(buf, lang)
         if not vim.api.nvim_buf_is_valid(buf) then return end
         if not pcall(vim.treesitter.start, buf, lang) then return end
-        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        if #vim.api.nvim_get_runtime_file("queries/" .. lang .. "/indents.scm", false) > 0 then
+          vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        end
       end
 
-      local pending = {}
+      local pending, failed = {}, {}
       vim.api.nvim_create_autocmd("FileType", {
+        group = vim.api.nvim_create_augroup("user_treesitter", { clear = true }),
         callback = function(ev)
           local lang = vim.treesitter.language.get_lang(ev.match)
           if not lang then return end
@@ -664,13 +695,22 @@ require("lazy").setup({
             return
           end
 
-          if pending[lang] or not vim.tbl_contains(nts.get_available(), lang) then return end
+          if pending[lang] or failed[lang] or not vim.list_contains(nts.get_available(), lang) then return end
           if not can_build() then return end
           pending[lang] = true
-          nts.install(lang):await(function(err)
+          nts.install(lang):await(function(err, ok)
             pending[lang] = nil
-            if err then return end
-            vim.schedule(function() start(ev.buf, lang) end)
+            if err or not ok then
+              failed[lang] = true
+              return
+            end
+            vim.schedule(function()
+              for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_is_loaded(buf) and vim.treesitter.language.get_lang(vim.bo[buf].filetype) == lang then
+                  start(buf, lang)
+                end
+              end
+            end)
           end)
         end,
       })
@@ -720,7 +760,7 @@ require("lazy").setup({
     event = { "BufReadPre", "BufNewFile" },
     keys = {
       {
-        "[c",
+        "[x",
         function() require("treesitter-context").go_to_context(vim.v.count1) end,
         mode = "n",
         desc = "Jump to context start",
@@ -809,6 +849,46 @@ require("lazy").setup({
         },
       })
 
+      vim.lsp.config("gopls", {
+        settings = {
+          gopls = {
+            hints = {
+              assignVariableTypes = true,
+              compositeLiteralFields = true,
+              constantValues = true,
+              functionTypeParameters = true,
+              parameterNames = true,
+              rangeVariableTypes = true,
+            },
+          },
+        },
+      })
+
+      local ts_hints = {
+        inlayHints = {
+          includeInlayParameterNameHints = "literals",
+          includeInlayFunctionParameterTypeHints = true,
+          includeInlayVariableTypeHints = true,
+          includeInlayPropertyDeclarationTypeHints = true,
+          includeInlayFunctionLikeReturnTypeHints = true,
+          includeInlayEnumMemberValueHints = true,
+        },
+      }
+      vim.lsp.config("ts_ls", { settings = { typescript = ts_hints, javascript = ts_hints } })
+
+      vim.lsp.config("pyright", {
+        before_init = function(_, config)
+          local root = config.root_dir or vim.fn.getcwd()
+          for _, venv in ipairs({ ".venv", "venv" }) do
+            local python = root .. "/" .. venv .. "/bin/python"
+            if vim.fn.executable(python) == 1 then
+              config.settings.python = vim.tbl_deep_extend("force", config.settings.python or {}, { pythonPath = python })
+              return
+            end
+          end
+        end,
+      })
+
       vim.api.nvim_create_user_command("LspDef", function() vim.lsp.buf.definition() end, {})
       vim.api.nvim_create_user_command("LspTypeDef", function() vim.lsp.buf.type_definition() end, {})
       vim.api.nvim_create_user_command("LspImpl", function() vim.lsp.buf.implementation() end, {})
@@ -829,18 +909,29 @@ require("lazy").setup({
           if client:supports_method("textDocument/codeLens") then
             vim.lsp.codelens.enable(true, { bufnr = ev.buf })
           end
+          if client:supports_method("textDocument/definition") then
+            vim.keymap.set("n", "gd", vim.lsp.buf.definition, { buffer = ev.buf, desc = "Go to definition" })
+          end
+          if client:supports_method("textDocument/declaration") then
+            vim.keymap.set("n", "gD", vim.lsp.buf.declaration, { buffer = ev.buf, desc = "Go to declaration" })
+          end
         end,
       })
 
-      vim.o.updatetime = 400
       vim.api.nvim_create_autocmd("CursorHold", {
+        group = vim.api.nvim_create_augroup("user_diag_float", { clear = true }),
         callback = function()
+          if vim.bo.buftype ~= "" then return end
+          for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+            local cfg = vim.api.nvim_win_get_config(win)
+            if cfg.relative ~= "" and cfg.focusable then return end
+          end
           vim.diagnostic.open_float(nil, {
             focusable = false,
             close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
             border = "rounded",
-            source = "always",
-            scope = "cursor",
+            source = true,
+            scope = "line",
           })
         end,
       })
@@ -860,7 +951,7 @@ require("lazy").setup({
           end
         end
         local delim
-        for _, d in ipairs({ "/", "#", ",", "@", "|" }) do
+        for _, d in ipairs({ "/", "#", ",", "@", ";", "!" }) do
           if not old:find(d, 1, true) and not new:find(d, 1, true) then
             delim = d
             break
@@ -870,7 +961,11 @@ require("lazy").setup({
           vim.notify("RepPat: couldn't find a delimiter not used in <old>/<new>", vim.log.levels.ERROR)
           return
         end
-        vim.cmd("vimgrep " .. delim .. old .. delim .. "g" .. pat)
+        local ok, err = pcall(vim.cmd, "vimgrep " .. delim .. old .. delim .. "gj " .. pat)
+        if not ok then
+          vim.notify("RepPat: " .. (tostring(err):match("E%d+:.*") or tostring(err)), vim.log.levels.WARN)
+          return
+        end
         vim.cmd("cfdo %s" .. delim .. old .. delim .. new .. delim .. how .. " | update")
       end
       vim.api.nvim_create_user_command("RepPat", function(opts)
@@ -888,6 +983,21 @@ require("lazy").setup({
   {
     "bfrg/vim-c-cpp-modern",
     ft = { "c", "cpp" },
+  },
+
+  {
+    "MeanderingProgrammer/render-markdown.nvim",
+    ft = { "markdown" },
+    dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-tree/nvim-web-devicons" },
+    keys = {
+      { "<leader>ur", "<cmd>RenderMarkdown toggle<cr>", ft = "markdown", desc = "Toggle markdown render" },
+    },
+    opts = {
+      completions = { lsp = { enabled = true } },
+      heading = { width = "block", left_pad = 1, right_pad = 2 },
+      code = { width = "block", left_pad = 1, right_pad = 2, border = "thin" },
+      pipe_table = { style = "full" },
+    },
   },
 
   {
@@ -929,7 +1039,49 @@ require("lazy").setup({
       })
     end,
     config = function()
-      require("nvim-tree").setup()
+      require("nvim-tree").setup({
+        on_attach = function(buf)
+          local api = require("nvim-tree.api")
+          api.config.mappings.default_on_attach(buf)
+          vim.keymap.set("n", "<LeftRelease>", function()
+            local node = api.tree.get_node_under_cursor()
+            if not node or node.name == ".." then return end
+            api.node.open.edit()
+          end, { buffer = buf, desc = "Open (single click)" })
+          for _, key in ipairs({ "<2-LeftMouse>", "<2-LeftRelease>", "<3-LeftMouse>", "<3-LeftRelease>", "<4-LeftMouse>", "<4-LeftRelease>" }) do
+            vim.keymap.set("n", key, "<Nop>", { buffer = buf })
+          end
+        end,
+        sync_root_with_cwd = true,
+        update_focused_file = { enable = true },
+        view = { width = 32, side = "left", preserve_window_proportions = true },
+        renderer = {
+          root_folder_label = function(path)
+            return "󰉋 " .. vim.fn.fnamemodify(path, ":t"):upper()
+          end,
+          group_empty = true,
+          indent_markers = { enable = true },
+          highlight_git = "name",
+          highlight_diagnostics = "name",
+          highlight_opened_files = "name",
+          highlight_modified = "name",
+          icons = {
+            git_placement = "after",
+            diagnostics_placement = "after",
+            modified_placement = "after",
+            glyphs = {
+              git = {
+                unstaged = "M", staged = "A", unmerged = "!", renamed = "R",
+                untracked = "U", deleted = "D", ignored = "◌",
+              },
+            },
+          },
+        },
+        diagnostics = { enable = true, show_on_dirs = true },
+        modified = { enable = true },
+        git = { ignore = false },
+        filters = { custom = { "^.git$" } },
+      })
     end,
   },
 
@@ -949,6 +1101,12 @@ require("lazy").setup({
       { "<leader>fg", function() require("telescope.builtin").live_grep() end, desc = "Live grep" },
       { "<leader>fb", function() require("telescope.builtin").buffers() end, desc = "Buffers" },
       { "<leader>fh", function() require("telescope.builtin").help_tags() end, desc = "Help tags" },
+      { "<leader>fr", function() require("telescope.builtin").resume() end, desc = "Resume last picker" },
+      { "<leader>fo", function() require("telescope.builtin").oldfiles({ only_cwd = true }) end, desc = "Recent files (cwd)" },
+      { "<leader>fw", function() require("telescope.builtin").grep_string() end, mode = { "n", "x" }, desc = "Grep word/selection" },
+      { "<leader>fs", function() require("telescope.builtin").lsp_document_symbols() end, desc = "Document symbols" },
+      { "<leader>fS", function() require("telescope.builtin").lsp_dynamic_workspace_symbols() end, desc = "Workspace symbols" },
+      { "<leader>fd", function() require("telescope.builtin").diagnostics({ bufnr = 0 }) end, desc = "Buffer diagnostics" },
     },
     config = function()
       local telescope = require("telescope")
@@ -988,8 +1146,24 @@ require("lazy").setup({
           expand = function(args) luasnip.lsp_expand(args.body) end,
         },
         mapping = cmp.mapping.preset.insert({
-          ["<Tab>"] = cmp.mapping.select_next_item(),
-          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
+          ["<Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_next_item()
+            elseif luasnip.locally_jumpable(1) then
+              luasnip.jump(1)
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+          ["<S-Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_prev_item()
+            elseif luasnip.locally_jumpable(-1) then
+              luasnip.jump(-1)
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
           ["<CR>"] = cmp.mapping.confirm({ select = true }),
         }),
         sources = cmp.config.sources({
@@ -1101,6 +1275,7 @@ require("lazy").setup({
     dependencies = { "MunifTanjim/nui.nvim" },
     opts = {
       lsp = {
+        signature = { enabled = false },
         override = {
           ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
           ["vim.lsp.util.stylize_markdown"] = true,
@@ -1194,7 +1369,6 @@ require("lazy").setup({
         python = { "ruff" },
         cpp = { "cppcheck" },
         c = { "cppcheck" },
-        html = { "vnu" },
       }
 
       local function available_linters(ft)
@@ -1203,10 +1377,13 @@ require("lazy").setup({
         local out = {}
         for _, name in ipairs(names) do
           local linter = lint.linters[name]
-          local cmd = type(linter) == "table" and linter.cmd or nil
-          if type(cmd) == "function" then cmd = cmd() end
-          if not cmd or vim.fn.executable(cmd) == 1 then
-            table.insert(out, name)
+          if type(linter) == "function" then linter = linter() end
+          if type(linter) == "table" then
+            local cmd = linter.cmd
+            if type(cmd) == "function" then cmd = cmd() end
+            if vim.fn.executable(cmd) == 1 then
+              table.insert(out, name)
+            end
           end
         end
         return #out > 0 and out or nil
@@ -1232,11 +1409,14 @@ require("lazy").setup({
         end))
       end
 
+      local group = vim.api.nvim_create_augroup("user_lint", { clear = true })
       vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "TextChanged", "TextChangedI", "InsertLeave" }, {
+        group = group,
         callback = debounced_lint,
       })
 
       vim.api.nvim_create_autocmd("BufDelete", {
+        group = group,
         callback = function(ev)
           local timer = lint_timers[ev.buf]
           if timer then
@@ -1248,40 +1428,13 @@ require("lazy").setup({
       })
 
       vim.api.nvim_create_user_command("Lint", function()
-        lint.try_lint(available_linters(vim.bo.filetype))
+        local names = available_linters(vim.bo.filetype)
+        if not names then
+          vim.notify("No available linter for filetype '" .. vim.bo.filetype .. "'", vim.log.levels.WARN)
+          return
+        end
+        lint.try_lint(names)
       end, {})
-    end,
-  },
-
-  {
-    "akinsho/bufferline.nvim",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
-    event = "VeryLazy",
-    config = function()
-      require("bufferline").setup({
-        options = {
-          diagnostics = "nvim_lsp",
-          separator_style = in_kitty and { "▏", "▏" } or "slant",
-          indicator = { style = in_kitty and "underline" or "icon" },
-          always_show_bufferline = true,
-        },
-      })
-
-      vim.api.nvim_create_autocmd("ColorScheme", {
-        callback = function() vim.schedule(clear_bufferline_bg) end,
-      })
-    end,
-  },
-
-  {
-    "akinsho/toggleterm.nvim",
-    version = "*",
-    config = function()
-      require("toggleterm").setup({
-        size = 15,
-        open_mapping = [[<c-\>]],
-        direction = "horizontal",
-      })
     end,
   },
 
@@ -1289,7 +1442,22 @@ require("lazy").setup({
     "lewis6991/gitsigns.nvim",
     event = { "BufReadPre", "BufNewFile" },
     config = function()
-      require("gitsigns").setup()
+      require("gitsigns").setup({
+        on_attach = function(buf)
+          local gs = require("gitsigns")
+          local function map(mode, lhs, rhs, desc)
+            vim.keymap.set(mode, lhs, rhs, { buffer = buf, desc = desc })
+          end
+          map("n", "]h", function() gs.nav_hunk("next") end, "Next hunk")
+          map("n", "[h", function() gs.nav_hunk("prev") end, "Prev hunk")
+          map("n", "<leader>gs", gs.stage_hunk, "Stage/unstage hunk")
+          map("x", "<leader>gs", function() gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end, "Stage selection")
+          map("n", "<leader>gr", gs.reset_hunk, "Reset hunk")
+          map("n", "<leader>gp", gs.preview_hunk_inline, "Preview hunk")
+          map("n", "<leader>gb", function() gs.blame_line({ full = true }) end, "Blame line")
+          map({ "o", "x" }, "ih", gs.select_hunk, "Select hunk")
+        end,
+      })
     end,
   },
 
@@ -1326,44 +1494,14 @@ require("lazy").setup({
   },
 
   {
-    "ggandor/leap.nvim",
+    url = "https://codeberg.org/andyg/leap.nvim",
+    name = "leap.nvim",
     keys = {
-      { "s", "<Plug>(leap-forward-to)", mode = { "n", "x", "o" }, desc = "Leap forward to" },
-      { "S", "<Plug>(leap-backward-to)", mode = { "n", "o" }, desc = "Leap backward to" },
+      { "s", "<Plug>(leap-forward)", mode = { "n", "x", "o" }, desc = "Leap forward" },
+      { "S", "<Plug>(leap-backward)", mode = { "n", "x", "o" }, desc = "Leap backward" },
     },
     config = function()
-      require("leap").opts.safe_labels = {}
-    end,
-  },
-
-  {
-    "nvim-lualine/lualine.nvim",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
-    event = "VeryLazy",
-    config = function()
-      require("lualine").setup({
-        options = {
-          component_separators = { left = "｜", right = "｜" },
-          section_separators = { left = "", right = "" },
-        },
-        sections = {
-          lualine_x = {
-            {
-              function()
-                local profile = cached_profile()
-                if profile == "cpp" then
-                  local target = get_cmake_target(vim.fn.getcwd())
-                  if target then return "cpp[" .. target .. "]" end
-                end
-                return profile
-              end,
-            },
-            "encoding",
-            "fileformat",
-            "filetype"
-          },
-        },
-      })
+      require("leap").opts.safe_labels = ""
     end,
   },
 
@@ -1386,7 +1524,6 @@ require("lazy").setup({
         return string.format("#%02x%02x%02x", r, g, b)
       end
 
-      -- 배경 블록(bg)은 투명 배경과 같이 갈 수 없다. VSCode처럼 얇은 세로선을 fg로 그린다.
       local alphas = { 0.0, 0.15, 0.30, 0.45, 0.60, 0.75, 0.90 }
 
       local hl_groups = {}
@@ -1400,7 +1537,6 @@ require("lazy").setup({
           return hl.fg and string.format("#%06x", hl.fg) or fallback
         end
 
-        -- 깊어질수록 흐린 색(Comment)에서 본문 색(Normal) 쪽으로 밝아진다
         local base = hl_fg("Comment", "#565f89")
         local top = hl_fg("Normal", "#c0caf5")
 
@@ -1442,7 +1578,7 @@ require("lazy").setup({
     end,
   },
 
-  { 
+  {
     "folke/todo-comments.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
     event = { "BufReadPre", "BufNewFile" },
@@ -1662,7 +1798,10 @@ require("lazy").setup({
       local wk = require("which-key")
       wk.setup(opts)
       wk.add({
+        { "<leader>b", group = "buffer/tab" },
         { "<leader>c", group = "code/claude" },
+        { "<leader>p", group = "panel" },
+        { "<leader>u", group = "ui" },
         { "<leader>d", group = "debug" },
         { "<leader>f", group = "find" },
         { "<leader>g", group = "git" },
@@ -1730,46 +1869,30 @@ require("lazy").setup({
   },
 
   {
-    "greggh/claude-code.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    cmd = { "ClaudeCode", "ClaudeCodeContinue", "ClaudeCodeResume", "ClaudeCodeVerbose" },
+    "coder/claudecode.nvim",
+    cmd = {
+      "ClaudeCode", "ClaudeCodeFocus", "ClaudeCodeSend", "ClaudeCodeAdd", "ClaudeCodeTreeAdd",
+      "ClaudeCodeDiffAccept", "ClaudeCodeDiffDeny", "ClaudeCodeSelectModel", "ClaudeCodeStatus",
+    },
     keys = {
-
       { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Claude Code toggle" },
-      { "<leader>cC", "<cmd>ClaudeCodeContinue<cr>", desc = "Claude Code (continue)" },
-      { "<leader>cr", "<cmd>ClaudeCodeResume<cr>", desc = "Claude Code (resume)" },
-      { "<leader>cV", "<cmd>ClaudeCodeVerbose<cr>", desc = "Claude Code (verbose)" },
-      { "<C-,>", "<cmd>ClaudeCode<cr>", mode = { "n", "t" }, desc = "Claude Code toggle" },
+      { "<C-,>", "<cmd>ClaudeCodeFocus<cr>", mode = { "n", "t" }, desc = "Claude Code focus" },
+      { "<leader>cC", "<cmd>ClaudeCode --continue<cr>", desc = "Claude Code (continue)" },
+      { "<leader>cr", "<cmd>ClaudeCode --resume<cr>", desc = "Claude Code (resume)" },
+      { "<leader>cm", "<cmd>ClaudeCodeSelectModel<cr>", desc = "Claude: select model" },
+      { "<leader>cb", "<cmd>ClaudeCodeAdd %<cr>", desc = "Claude: add buffer" },
+      { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", mode = "x", desc = "Claude: send selection" },
+      { "<leader>cs", "<cmd>ClaudeCodeTreeAdd<cr>", ft = "NvimTree", desc = "Claude: add file" },
+      { "<leader>cy", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Claude: accept diff" },
+      { "<leader>cn", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Claude: deny diff" },
     },
     opts = {
-      window = {
-        split_ratio = 0.35,
-        position = "botright",
-        enter_insert = true,
-        hide_numbers = true,
-        hide_signcolumn = true,
+      terminal = {
+        provider = "native",
+        split_side = "right",
+        split_width_percentage = 0.35,
       },
-
-      refresh = {
-        enable = true,
-        updatetime = 100,
-        timer_interval = 1000,
-        show_notifications = true,
-      },
-
-      git = { use_git_root = true },
-      keymaps = {
-        toggle = {
-          normal = "<C-,>",
-          terminal = "<C-,>",
-          variants = {
-            continue = "<leader>cC",
-            verbose = "<leader>cV",
-          },
-        },
-        window_navigation = true,
-        scrolling = true,
-      },
+      diff_opts = { layout = "vertical" },
     },
   },
 
@@ -1795,4 +1918,1295 @@ require("lazy").setup({
       },
     },
   },
+})
+
+package.preload["ui.util"] = function()
+  local M = {}
+
+  local function hl(name)
+    local ok, h = pcall(vim.api.nvim_get_hl, 0, { name = name, link = false })
+    return ok and h or {}
+  end
+
+  function M.fg(name, fallback)
+    local h = hl(name)
+    return h.fg and string.format("#%06x", h.fg) or fallback
+  end
+
+  function M.bg(name, fallback)
+    local h = hl(name)
+    return h.bg and string.format("#%06x", h.bg) or fallback
+  end
+
+  function M.blend(a, b, alpha)
+    if not a or not b then return a or b end
+    local function rgb(hex)
+      hex = hex:gsub("#", "")
+      return tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16)
+    end
+    local ar, ag, ab = rgb(a)
+    local br, bg_, bb = rgb(b)
+    return string.format(
+      "#%02x%02x%02x",
+      math.floor(ar * alpha + br * (1 - alpha)),
+      math.floor(ag * alpha + bg_ * (1 - alpha)),
+      math.floor(ab * alpha + bb * (1 - alpha))
+    )
+  end
+
+  function M.base_bg()
+    return M.bg("Normal") or (vim.o.background == "light" and "#ffffff" or "#1e1e1e")
+  end
+
+  function M.palette()
+    local normal = M.fg("Normal", "#cccccc")
+    local base = M.base_bg()
+    return {
+      fg = normal,
+      dim = M.fg("Comment", "#808080"),
+      base = base,
+      bar = M.bg("StatusLine") or M.blend(normal, base, 0.08),
+      accent = M.fg("Function", "#569cd6"),
+      blue = M.fg("Directory", "#569cd6"),
+      green = M.fg("String", "#6a9955"),
+      purple = M.fg("Statement", "#c586c0"),
+      orange = M.fg("Constant", "#ce9178"),
+      red = M.fg("DiagnosticError", "#f14c4c"),
+      yellow = M.fg("DiagnosticWarn", "#cca700"),
+      info = M.fg("DiagnosticInfo", "#3794ff"),
+      hint = M.fg("DiagnosticHint", "#75beff"),
+      add = M.fg("GitSignsAdd", M.fg("Added", "#587c0c")),
+      change = M.fg("GitSignsChange", M.fg("Changed", "#0c7d9d")),
+      delete = M.fg("GitSignsDelete", M.fg("Removed", "#94151b")),
+    }
+  end
+
+  function M.icon(path, ft)
+    local ok, devicons = pcall(require, "nvim-web-devicons")
+    if not ok then return "", nil end
+    local name = vim.fn.fnamemodify(path, ":t")
+    local icon, group = devicons.get_icon(name, vim.fn.fnamemodify(name, ":e"), { default = false })
+    if not icon and ft and ft ~= "" then
+      icon, group = devicons.get_icon_by_filetype(ft, { default = false })
+    end
+    if not icon then
+      icon, group = devicons.get_icon(name, nil, { default = true })
+    end
+    return icon or "", group
+  end
+
+  function M.esc(s)
+    return (tostring(s):gsub("%%", "%%%%"))
+  end
+
+  local special_ft = {
+    NvimTree = true, ["neo-tree"] = true, aerial = true, Trouble = true, trouble = true,
+    qf = true, help = false, lazy = true, mason = true, TelescopePrompt = true,
+    ["dapui_scopes"] = true, ["dapui_breakpoints"] = true, ["dapui_stacks"] = true,
+    ["dapui_watches"] = true, ["dapui_console"] = true, ["dap-repl"] = true,
+    noice = true, notify = true, Themery = true, vspanel = true,
+  }
+
+  function M.is_editor_win(win)
+    if not vim.api.nvim_win_is_valid(win) then return false end
+    if vim.api.nvim_win_get_config(win).relative ~= "" then return false end
+    local buf = vim.api.nvim_win_get_buf(win)
+    local bt = vim.bo[buf].buftype
+    if bt ~= "" and bt ~= "help" then return false end
+    return not special_ft[vim.bo[buf].filetype]
+  end
+
+  M.special_ft = special_ft
+
+  function M.is_empty_noname(buf)
+    return vim.api.nvim_buf_get_name(buf) == "" and vim.bo[buf].buftype == "" and not vim.bo[buf].modified
+      and vim.api.nvim_buf_line_count(buf) == 1 and vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] == ""
+  end
+
+  return M
+end
+
+package.preload["ui.statusline"] = function()
+  local util = require("ui.util")
+
+  local M = {}
+
+  M.extra = nil
+
+  local modes = {
+    n = { "NORMAL", "N" }, no = { "O-PENDING", "N" }, nov = { "O-PENDING", "N" }, noV = { "O-PENDING", "N" },
+    i = { "INSERT", "I" }, ic = { "INSERT", "I" }, ix = { "INSERT", "I" },
+    v = { "VISUAL", "V" }, vs = { "VISUAL", "V" }, V = { "V-LINE", "V" }, Vs = { "V-LINE", "V" },
+    ["\22"] = { "V-BLOCK", "V" }, ["\22s"] = { "V-BLOCK", "V" },
+    s = { "SELECT", "V" }, S = { "S-LINE", "V" }, ["\19"] = { "S-BLOCK", "V" },
+    R = { "REPLACE", "R" }, Rc = { "REPLACE", "R" }, Rv = { "V-REPLACE", "R" },
+    c = { "COMMAND", "C" }, cv = { "EX", "C" }, r = { "PROMPT", "C" }, rm = { "MORE", "C" },
+    ["r?"] = { "CONFIRM", "C" }, ["!"] = { "SHELL", "T" }, t = { "TERMINAL", "T" }, nt = { "NORMAL", "N" },
+  }
+
+  function M.setup_hl()
+    local p = util.palette()
+    local set = vim.api.nvim_set_hl
+    local mode_bg = { N = p.accent, I = p.green, V = p.purple, R = p.red, C = p.orange, T = p.green }
+    for key, color in pairs(mode_bg) do
+      set(0, "VsStMode" .. key, { fg = p.base, bg = color, bold = true })
+    end
+
+    local bars = { [""] = p.bar, D = p.orange }
+    for suffix, bar in pairs(bars) do
+      local on_debug = suffix == "D"
+      local fg = on_debug and p.base or p.fg
+      set(0, "VsSt" .. suffix, { fg = fg, bg = bar })
+      set(0, "VsStDim" .. suffix, { fg = on_debug and p.base or p.dim, bg = bar })
+      set(0, "VsStErr" .. suffix, { fg = on_debug and p.base or p.red, bg = bar, bold = on_debug })
+      set(0, "VsStWarn" .. suffix, { fg = on_debug and p.base or p.yellow, bg = bar })
+      set(0, "VsStAdd" .. suffix, { fg = on_debug and p.base or p.add, bg = bar })
+      set(0, "VsStChg" .. suffix, { fg = on_debug and p.base or p.change, bg = bar })
+      set(0, "VsStDel" .. suffix, { fg = on_debug and p.base or p.delete, bg = bar })
+      set(0, "VsStRec" .. suffix, { fg = on_debug and p.base or p.red, bg = bar, bold = true })
+      set(0, "VsStAccent" .. suffix, { fg = on_debug and p.base or p.accent, bg = bar, bold = true })
+    end
+  end
+
+  local function debugging()
+    if not package.loaded["dap"] then return nil end
+    local session = require("dap").session()
+    return session and (session.config and session.config.name or "debug") or nil
+  end
+
+  local function item(group, text, click)
+    if not text or text == "" then return "" end
+    local s = "%#" .. group .. "#" .. text
+    if click then
+      s = "%@v:lua.VsUi.click_" .. click .. "@" .. s .. "%T"
+    end
+    return s
+  end
+
+  function M.render()
+    local win = vim.g.statusline_winid or vim.api.nvim_get_current_win()
+    if not vim.api.nvim_win_is_valid(win) then return "" end
+    local buf = vim.api.nvim_win_get_buf(win)
+    local dbg = debugging()
+    local x = dbg and "D" or ""
+    local g = function(name) return name .. x end
+
+    local mode = vim.api.nvim_get_mode().mode
+    local m = modes[mode] or modes[mode:sub(1, 1)] or { mode, "N" }
+    local left = {}
+
+    left[#left + 1] = "%#VsStMode" .. m[2] .. "# " .. m[1] .. " "
+
+    local head = vim.b[buf].gitsigns_head
+    if head and head ~= "" then
+      left[#left + 1] = item(g("VsSt"), "  " .. util.esc(head) .. " ", "git")
+      local st = vim.b[buf].gitsigns_status_dict
+      if st then
+        local diff = {}
+        if (st.added or 0) > 0 then diff[#diff + 1] = "%#" .. g("VsStAdd") .. "#+" .. st.added end
+        if (st.changed or 0) > 0 then diff[#diff + 1] = "%#" .. g("VsStChg") .. "#~" .. st.changed end
+        if (st.removed or 0) > 0 then diff[#diff + 1] = "%#" .. g("VsStDel") .. "#-" .. st.removed end
+        if #diff > 0 then left[#left + 1] = table.concat(diff, " ") .. " " end
+      end
+    end
+
+    local counts = vim.diagnostic.count(nil)
+    local errs = counts[vim.diagnostic.severity.ERROR] or 0
+    local warns = counts[vim.diagnostic.severity.WARN] or 0
+    left[#left + 1] = "%@v:lua.VsUi.click_problems@"
+      .. "%#" .. g(errs > 0 and "VsStErr" or "VsStDim") .. "#  " .. errs
+      .. " %#" .. g(warns > 0 and "VsStWarn" or "VsStDim") .. "# " .. warns .. " %T"
+
+    local reg = vim.fn.reg_recording()
+    if reg ~= "" then
+      left[#left + 1] = item(g("VsStRec"), " 󰑋 recording @" .. reg .. " ")
+    end
+
+    if dbg then
+      left[#left + 1] = item(g("VsSt"), "  " .. util.esc(dbg) .. " ", "debug")
+    end
+
+    local right = {}
+    local progress = vim.lsp.status()
+    if progress ~= "" then
+      right[#right + 1] = item(g("VsStDim"), " " .. util.esc(progress:sub(1, 40)) .. " ")
+    end
+
+    local clients = {}
+    for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+      clients[#clients + 1] = c.name
+    end
+    if #clients > 0 then
+      right[#right + 1] = item(g("VsStDim"), "  " .. util.esc(table.concat(clients, ", ")) .. " ", "lsp")
+    end
+
+    local cur = vim.api.nvim_win_get_cursor(win)
+    right[#right + 1] = item(g("VsSt"), " Ln " .. cur[1] .. ", Col " .. (vim.fn.virtcol(".") or cur[2] + 1) .. " ")
+
+    local bo = vim.bo[buf]
+    if bo.buftype == "" then
+      local sw = bo.shiftwidth == 0 and bo.tabstop or bo.shiftwidth
+      right[#right + 1] = item(g("VsSt"), bo.expandtab and (" Spaces: " .. sw .. " ") or (" Tab Size: " .. bo.tabstop .. " "))
+      local enc = (bo.fileencoding ~= "" and bo.fileencoding or vim.o.encoding):upper()
+      right[#right + 1] = item(g("VsSt"), " " .. enc .. (bo.bomb and " BOM" or "") .. " ")
+      right[#right + 1] = item(g("VsSt"), " " .. ({ unix = "LF", dos = "CRLF", mac = "CR" })[bo.fileformat] .. " ")
+    end
+
+    local ft = bo.filetype
+    if ft ~= "" and not util.special_ft[ft] then
+      local icon = util.icon(vim.api.nvim_buf_get_name(buf), ft)
+      right[#right + 1] = item(g("VsSt"), " " .. icon .. " " .. ft .. " ")
+    end
+
+    if M.extra then
+      local ok, extra = pcall(M.extra, buf)
+      if ok and extra and extra ~= "" and extra ~= ft then
+        right[#right + 1] = item(g("VsStAccent"), " " .. util.esc(extra) .. " ")
+      end
+    end
+
+    right[#right + 1] = item(g("VsStDim"), " 󰂚 ", "notifications")
+
+    return table.concat(left) .. "%#" .. g("VsSt") .. "#%=" .. table.concat(right)
+  end
+
+  function M.setup()
+    vim.o.laststatus = 3
+    vim.o.showmode = false
+    vim.o.statusline = "%!v:lua.VsUi.statusline()"
+
+    local group = vim.api.nvim_create_augroup("VsUiStatusline", { clear = true })
+    vim.api.nvim_create_autocmd({ "RecordingEnter", "RecordingLeave", "DiagnosticChanged", "LspProgress", "LspAttach", "LspDetach" }, {
+      group = group,
+      callback = function() vim.schedule(function() vim.cmd.redrawstatus() end) end,
+    })
+  end
+
+  return M
+end
+
+package.preload["ui.tabline"] = function()
+  local util = require("ui.util")
+
+  local M = {}
+
+  M.last_editor_win = nil
+
+  local icon_hl_cache = {}
+
+  function M.setup_hl()
+    icon_hl_cache = {}
+    local p = util.palette()
+    local set = vim.api.nvim_set_hl
+    local inactive_bg = p.bar
+    set(0, "VsTab", { fg = p.dim, bg = inactive_bg })
+    set(0, "VsTabSel", { fg = p.fg, bold = true, underline = true, sp = p.accent })
+    set(0, "VsTabSelErr", { fg = p.red, bold = true, underline = true, sp = p.accent })
+    set(0, "VsTabSelWarn", { fg = p.yellow, bold = true, underline = true, sp = p.accent })
+    set(0, "VsTabErr", { fg = p.red, bg = inactive_bg })
+    set(0, "VsTabWarn", { fg = p.yellow, bg = inactive_bg })
+    set(0, "VsTabDir", { fg = p.dim, bg = inactive_bg, italic = true })
+    set(0, "VsTabSelDir", { fg = p.dim, italic = true, underline = true, sp = p.accent })
+    set(0, "VsTabFill", { bg = inactive_bg })
+    set(0, "VsTabExplorer", { fg = p.dim, bg = inactive_bg, bold = true })
+    set(0, "VsTabMore", { fg = p.accent, bg = inactive_bg, bold = true })
+  end
+
+  function M.buffers()
+    local out = {}
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.bo[buf].buflisted and vim.bo[buf].buftype == "" and vim.api.nvim_buf_is_loaded(buf)
+        and not util.is_empty_noname(buf) then
+        out[#out + 1] = buf
+      end
+    end
+    return out
+  end
+
+  local function display_names(bufs)
+    local names, tails = {}, {}
+    for _, buf in ipairs(bufs) do
+      local full = vim.api.nvim_buf_get_name(buf)
+      local tail = full == "" and "Untitled-" .. buf or vim.fn.fnamemodify(full, ":t")
+      names[buf] = { tail = tail, full = full }
+      tails[tail] = (tails[tail] or 0) + 1
+    end
+    for _, buf in ipairs(bufs) do
+      local n = names[buf]
+      if tails[n.tail] > 1 and n.full ~= "" then
+        n.dir = vim.fn.fnamemodify(n.full, ":h:t")
+      end
+    end
+    return names
+  end
+
+  local function sidebar_width()
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      if vim.bo[buf].filetype == "NvimTree" and vim.api.nvim_win_get_position(win)[2] == 0 then
+        return vim.api.nvim_win_get_width(win)
+      end
+    end
+    return 0
+  end
+
+  local function current_editor_buf()
+    local win = vim.api.nvim_get_current_win()
+    if not util.is_editor_win(win) and M.last_editor_win and vim.api.nvim_win_is_valid(M.last_editor_win) then
+      win = M.last_editor_win
+    end
+    return vim.api.nvim_win_get_buf(win)
+  end
+
+  function M.render()
+    local bufs = M.buffers()
+    local names = display_names(bufs)
+    local current = current_editor_buf()
+    local cols = vim.o.columns
+    local parts = {}
+
+    local sw = sidebar_width()
+    local used = 0
+    if sw > 0 then
+      local title = " EXPLORER"
+      parts[#parts + 1] = "%#VsTabExplorer#" .. title .. string.rep(" ", math.max(0, sw - #title)) .. "%#VsTabFill#│"
+      used = sw + 1
+    end
+    parts[#parts + 1] = "%<"
+
+    local tabs = {}
+    local current_idx = 1
+    for i, buf in ipairs(bufs) do
+      local n = names[buf]
+      local sel = buf == current
+      if sel then current_idx = i end
+      local counts = vim.diagnostic.count(buf)
+      local state = (counts[vim.diagnostic.severity.ERROR] or 0) > 0 and "Err"
+        or (counts[vim.diagnostic.severity.WARN] or 0) > 0 and "Warn" or ""
+      local base = sel and "VsTabSel" or "VsTab"
+      local icon, icon_group = util.icon(n.full ~= "" and n.full or n.tail, vim.bo[buf].filetype)
+      local modified = vim.bo[buf].modified
+
+      local icon_hl = base
+      if icon_group then
+        local name = "VsTabIcon" .. (sel and "Sel" or "") .. icon_group
+        if not icon_hl_cache[name] then
+          icon_hl_cache[name] = true
+          local p = util.palette()
+          vim.api.nvim_set_hl(0, name, sel
+            and { fg = util.fg(icon_group), underline = true, sp = p.accent }
+            or { fg = util.fg(icon_group), bg = p.bar })
+        end
+        icon_hl = name
+      end
+
+      local text = "%" .. buf .. "@v:lua.VsUi.tab_click@"
+        .. "%#" .. base .. "#  "
+        .. "%#" .. icon_hl .. "#" .. icon .. " "
+        .. "%#" .. base .. state .. "#" .. util.esc(n.tail)
+        .. (n.dir and ("%#" .. (sel and "VsTabSelDir" or "VsTabDir") .. "# " .. util.esc(n.dir)) or "")
+        .. "%#" .. base .. "# %T"
+        .. "%" .. buf .. "@v:lua.VsUi.tab_close@" .. (modified and "● " or "󰅖 ") .. "%T"
+      local width = vim.api.nvim_eval_statusline(text:gsub("%%%d*@[^@]*@", ""):gsub("%%T", ""), { use_tabline = true }).width
+      tabs[i] = { text = text, width = width }
+    end
+
+    local avail = cols - used - 4
+    local first, last = current_idx, current_idx
+    local total = tabs[current_idx] and tabs[current_idx].width or 0
+    while true do
+      local grew = false
+      if last < #tabs and total + tabs[last + 1].width <= avail then
+        last = last + 1; total = total + tabs[last].width; grew = true
+      end
+      if first > 1 and total + tabs[first - 1].width <= avail then
+        first = first - 1; total = total + tabs[first].width; grew = true
+      end
+      if not grew then break end
+    end
+
+    if first > 1 then parts[#parts + 1] = "%#VsTabMore#‹ " end
+    for i = first, last do
+      if tabs[i] then parts[#parts + 1] = tabs[i].text end
+    end
+    if last < #tabs then parts[#parts + 1] = "%#VsTabMore# ›" end
+
+    parts[#parts + 1] = "%#VsTabFill#%="
+    if #vim.api.nvim_list_tabpages() > 1 then
+      parts[#parts + 1] = "%#VsTabMore# " .. vim.fn.tabpagenr() .. "/" .. vim.fn.tabpagenr("$") .. " "
+    end
+    return table.concat(parts)
+  end
+
+  local function target_win()
+    local win = vim.api.nvim_get_current_win()
+    if util.is_editor_win(win) then return win end
+    if M.last_editor_win and vim.api.nvim_win_is_valid(M.last_editor_win)
+      and vim.api.nvim_win_get_tabpage(M.last_editor_win) == vim.api.nvim_get_current_tabpage() then
+      return M.last_editor_win
+    end
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if util.is_editor_win(w) then return w end
+    end
+    return win
+  end
+
+  function M.goto_buf(buf)
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    local win = target_win()
+    vim.api.nvim_set_current_win(win)
+    vim.api.nvim_win_set_buf(win, buf)
+  end
+
+  function M.close_buf(buf, force)
+    buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    if vim.bo[buf].modified and not force then
+      local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":t")
+      local choice = vim.fn.confirm(("Save changes to %s?"):format(name ~= "" and name or "Untitled"), "&Save\n&Don't Save\n&Cancel", 3)
+      if choice == 1 then
+        vim.api.nvim_buf_call(buf, function() vim.cmd.write() end)
+      elseif choice ~= 2 then
+        return
+      end
+    end
+
+    local bufs = M.buffers()
+    local idx = 1
+    for i, b in ipairs(bufs) do
+      if b == buf then idx = i end
+    end
+    local replacement = bufs[idx + 1] or bufs[idx - 1]
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(win) == buf and vim.api.nvim_win_get_config(win).relative == "" then
+        if replacement and replacement ~= buf then
+          vim.api.nvim_win_set_buf(win, replacement)
+        else
+          vim.api.nvim_win_call(win, function() vim.cmd.enew() end)
+        end
+      end
+    end
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end
+
+  function M.cycle(step)
+    local bufs = M.buffers()
+    if #bufs == 0 then return end
+    local cur = current_editor_buf()
+    local idx = 1
+    for i, b in ipairs(bufs) do
+      if b == cur then idx = i end
+    end
+    M.goto_buf(bufs[(idx - 1 + step) % #bufs + 1])
+  end
+
+  function M.setup()
+    vim.o.showtabline = 2
+    vim.o.tabline = "%!v:lua.VsUi.tabline()"
+
+    local group = vim.api.nvim_create_augroup("VsUiTabline", { clear = true })
+    vim.api.nvim_create_autocmd("WinEnter", {
+      group = group,
+      callback = function()
+        local win = vim.api.nvim_get_current_win()
+        if util.is_editor_win(win) then M.last_editor_win = win end
+      end,
+    })
+    vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufModifiedSet" }, {
+      group = group,
+      callback = function() vim.schedule(function() vim.cmd.redrawtabline() end) end,
+    })
+
+    local map = vim.keymap.set
+    map("n", "<C-PageDown>", function() M.cycle(1) end, { desc = "Next tab" })
+    map("n", "<C-PageUp>", function() M.cycle(-1) end, { desc = "Previous tab" })
+    map("n", "<A-l>", function() M.cycle(1) end, { desc = "Next tab" })
+    map("n", "<A-h>", function() M.cycle(-1) end, { desc = "Previous tab" })
+    for i = 1, 9 do
+      map("n", "<A-" .. i .. ">", function()
+        local b = M.buffers()[i]
+        if b then M.goto_buf(b) end
+      end, { desc = "Go to tab " .. i })
+    end
+    map("n", "<leader>bd", function() M.close_buf(0) end, { desc = "Close tab" })
+    map("n", "<leader>bD", function() M.close_buf(0, true) end, { desc = "Close tab (discard changes)" })
+    map("n", "<leader>bo", function()
+      local cur = current_editor_buf()
+      for _, b in ipairs(M.buffers()) do
+        if b ~= cur and not vim.bo[b].modified then M.close_buf(b) end
+      end
+    end, { desc = "Close other tabs" })
+  end
+
+  return M
+end
+
+package.preload["ui.winbar"] = function()
+  local util = require("ui.util")
+
+  local M = {}
+
+  local kind_icons = {
+    [1] = "󰈙", [2] = "", [3] = "󰅩", [4] = "󰏗", [5] = "󰠱", [6] = "󰆧", [7] = "", [8] = "",
+    [9] = "", [10] = "", [11] = "", [12] = "󰊕", [13] = "󰀫", [14] = "󰏿", [15] = "󰀬",
+    [16] = "󰎠", [17] = "◩", [18] = "󰅪", [19] = "󰅩", [20] = "󰌋", [21] = "󰟢", [22] = "",
+    [23] = "󰙅", [24] = "", [25] = "󰆕", [26] = "󰊄",
+  }
+  local kind_hl = {
+    [5] = "Type", [10] = "Type", [11] = "Type", [23] = "Type", [26] = "Type",
+    [6] = "Function", [9] = "Function", [12] = "Function",
+    [7] = "Identifier", [8] = "Identifier", [13] = "Identifier", [14] = "Constant", [22] = "Constant",
+    [2] = "Include", [3] = "Include", [4] = "Include",
+  }
+
+  local cache = {}
+  local pending = {}
+  local chains = {}
+
+  function M.setup_hl()
+    local p = util.palette()
+    local set = vim.api.nvim_set_hl
+    set(0, "WinBar", { fg = p.dim })
+    set(0, "WinBarNC", { fg = p.dim })
+    set(0, "VsCrumb", { fg = p.dim })
+    set(0, "VsCrumbSep", { fg = util.blend(p.dim, p.base, 0.6) })
+    set(0, "VsCrumbFile", { fg = util.blend(p.fg, p.dim, 0.5) })
+    for kind, group in pairs(kind_hl) do
+      set(0, "VsCrumbKind" .. kind, { fg = util.fg(group, p.accent) })
+    end
+  end
+
+  local function contains(range, line, col)
+    local s, e = range.start, range["end"]
+    if line < s.line or line > e.line then return false end
+    if line == s.line and col < s.character then return false end
+    if line == e.line and col > e.character then return false end
+    return true
+  end
+
+  local function chain_at(buf, line, col)
+    local entry = cache[buf]
+    if not entry or not entry.symbols then return {} end
+    local out = {}
+    local nodes = entry.symbols
+    if entry.flat then
+      for _, s in ipairs(nodes) do
+        local r = s.location and s.location.range
+        if r and contains(r, line, col) then out[#out + 1] = { s = s, r = r } end
+      end
+      table.sort(out, function(a, b)
+        return (a.r["end"].line - a.r.start.line) > (b.r["end"].line - b.r.start.line)
+      end)
+      for i, o in ipairs(out) do out[i] = { name = o.s.name, kind = o.s.kind, pos = o.r.start } end
+      return out
+    end
+    while nodes do
+      local found
+      for _, s in ipairs(nodes) do
+        if s.range and contains(s.range, line, col) then
+          found = s
+          break
+        end
+      end
+      if not found then break end
+      local pos = (found.selectionRange or found.range).start
+      out[#out + 1] = { name = found.name, kind = found.kind, pos = pos }
+      nodes = found.children
+    end
+    return out
+  end
+
+  function M.request(buf)
+    if pending[buf] or not vim.api.nvim_buf_is_valid(buf) then return end
+    local tick = vim.b[buf].changedtick
+    if cache[buf] and cache[buf].tick == tick then return end
+    local client = vim.lsp.get_clients({ bufnr = buf, method = "textDocument/documentSymbol" })[1]
+    if not client then return end
+    pending[buf] = true
+    local params = { textDocument = vim.lsp.util.make_text_document_params(buf) }
+    client:request("textDocument/documentSymbol", params, function(err, result)
+      pending[buf] = nil
+      if err or not result or not vim.api.nvim_buf_is_valid(buf) then return end
+      cache[buf] = { tick = tick, symbols = result, flat = result[1] ~= nil and result[1].location ~= nil }
+      vim.schedule(function() pcall(vim.cmd.redrawstatus, { bang = true }) end)
+    end, buf)
+  end
+
+  local function path_parts(buf)
+    local name = vim.api.nvim_buf_get_name(buf)
+    if name == "" then return {}, "Untitled" end
+    local rel = vim.fn.fnamemodify(name, ":~:.")
+    local parts = vim.split(rel, "/", { plain = true, trimempty = true })
+    local file = table.remove(parts)
+    if not rel:match("^[~/]") then
+      table.insert(parts, 1, vim.fn.fnamemodify(vim.fn.getcwd(), ":t"))
+    end
+    if #parts > 4 then
+      parts = { "…", parts[#parts - 2], parts[#parts - 1], parts[#parts] }
+    end
+    return parts, file
+  end
+
+  function M.render()
+    local win = vim.g.statusline_winid or vim.api.nvim_get_current_win()
+    if not vim.api.nvim_win_is_valid(win) then return "" end
+    local buf = vim.api.nvim_win_get_buf(win)
+    local sep = "%#VsCrumbSep# › "
+    local out = { " " }
+
+    local parts, file = path_parts(buf)
+    for _, p in ipairs(parts) do
+      out[#out + 1] = "%#VsCrumb#" .. util.esc(p) .. sep
+    end
+    local icon, icon_group = util.icon(vim.api.nvim_buf_get_name(buf), vim.bo[buf].filetype)
+    out[#out + 1] = "%#" .. (icon_group or "VsCrumbFile") .. "#" .. icon .. " %#VsCrumbFile#" .. util.esc(file)
+
+    local cur = vim.api.nvim_win_get_cursor(win)
+    local chain = chain_at(buf, cur[1] - 1, cur[2])
+    chains[win] = {}
+    for i, s in ipairs(chain) do
+      chains[win][i] = s.pos
+      local group = kind_hl[s.kind] and ("VsCrumbKind" .. s.kind) or "VsCrumb"
+      out[#out + 1] = sep .. "%" .. i .. "@v:lua.VsUi.crumb_click@"
+        .. "%#" .. group .. "#" .. (kind_icons[s.kind] or "•") .. " %#VsCrumb#" .. util.esc(s.name) .. "%T"
+    end
+    return table.concat(out)
+  end
+
+  function M.click(idx)
+    local win = vim.fn.getmousepos().winid
+    local pos = chains[win] and chains[win][idx]
+    if not pos or not vim.api.nvim_win_is_valid(win) then return end
+    vim.api.nvim_set_current_win(win)
+    pcall(vim.api.nvim_win_set_cursor, win, { pos.line + 1, pos.character })
+  end
+
+  local WINBAR = "%{%v:lua.VsUi.winbar()%}"
+
+  local function attach(win)
+    if not vim.api.nvim_win_is_valid(win) then return end
+    local buf = vim.api.nvim_win_get_buf(win)
+    if util.is_editor_win(win) and vim.bo[buf].buftype == "" and not util.is_empty_noname(buf) then
+      if vim.wo[win].winbar ~= WINBAR then vim.wo[win].winbar = WINBAR end
+    elseif vim.wo[win].winbar == WINBAR then
+      vim.wo[win].winbar = ""
+    end
+  end
+
+  function M.setup()
+    local group = vim.api.nvim_create_augroup("VsUiWinbar", { clear = true })
+    vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "FileType", "TermOpen", "BufModifiedSet", "BufFilePost" }, {
+      group = group,
+      callback = function() attach(vim.api.nvim_get_current_win()) end,
+    })
+
+    local timers = {}
+    local function debounced(buf, ms)
+      local t = timers[buf]
+      if not t then
+        t = vim.uv.new_timer()
+        timers[buf] = t
+      end
+      t:stop()
+      t:start(ms, 0, vim.schedule_wrap(function() M.request(buf) end))
+    end
+
+    vim.api.nvim_create_autocmd("LspAttach", {
+      group = group,
+      callback = function(ev) debounced(ev.buf, 100) end,
+    })
+    vim.api.nvim_create_autocmd({ "BufEnter", "InsertLeave", "BufWritePost" }, {
+      group = group,
+      callback = function(ev) debounced(ev.buf, 100) end,
+    })
+    vim.api.nvim_create_autocmd("TextChanged", {
+      group = group,
+      callback = function(ev) debounced(ev.buf, 500) end,
+    })
+    vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
+      group = group,
+      callback = function(ev)
+        cache[ev.buf] = nil
+        pending[ev.buf] = nil
+        local t = timers[ev.buf]
+        if t then
+          t:stop()
+          t:close()
+          timers[ev.buf] = nil
+        end
+      end,
+    })
+    vim.api.nvim_create_autocmd("WinClosed", {
+      group = group,
+      callback = function(ev) chains[tonumber(ev.match)] = nil end,
+    })
+
+    for _, win in ipairs(vim.api.nvim_list_wins()) do attach(win) end
+  end
+
+  return M
+end
+
+package.preload["ui.panel"] = function()
+  local util = require("ui.util")
+
+  local M = {}
+
+  M.height = 12
+
+  local state = {
+    win = nil,
+    tab = "terminal",
+    problems_buf = nil,
+    output_buf = nil,
+    output_job = nil,
+    output_title = nil,
+    terms = {},
+    term_idx = 0,
+    rows = {},
+  }
+
+  local ns = vim.api.nvim_create_namespace("vs_panel")
+
+  function M.setup_hl()
+    local p = util.palette()
+    local set = vim.api.nvim_set_hl
+    set(0, "VsPanelTab", { fg = p.dim })
+    set(0, "VsPanelTabSel", { fg = p.fg, bold = true, underline = true, sp = p.accent })
+    set(0, "VsPanelBadge", { fg = p.base, bg = p.accent, bold = true })
+    set(0, "VsPanelBadgeErr", { fg = p.base, bg = p.red, bold = true })
+    set(0, "VsPanelFile", { fg = p.fg, bold = true })
+    set(0, "VsPanelDir", { fg = p.dim, italic = true })
+    set(0, "VsPanelPos", { fg = p.dim })
+    set(0, "VsPanelSource", { fg = p.dim, italic = true })
+    set(0, "VsPanelBtn", { fg = p.dim })
+  end
+
+  local function is_open()
+    return state.win and vim.api.nvim_win_is_valid(state.win)
+  end
+
+  function M.is_panel_win(win)
+    return is_open() and win == state.win
+  end
+
+  local sev_icon = { "", "", "", "󰌶" }
+  local sev_hl = { "DiagnosticError", "DiagnosticWarn", "DiagnosticInfo", "DiagnosticHint" }
+
+  local function build_items()
+    local qf = vim.fn.getqflist({ title = 0, items = 0 })
+    local items = {}
+    if qf.title and qf.title:match("^Build") then
+      for _, it in ipairs(qf.items) do
+        if it.valid == 1 and it.bufnr > 0 then
+          local t = (it.type or ""):upper()
+          items[#items + 1] = {
+            bufnr = it.bufnr, lnum = it.lnum - 1, col = math.max(it.col - 1, 0),
+            severity = (t == "W") and 2 or (t == "I" or t == "N") and 3 or 1,
+            message = it.text, source = "build",
+          }
+        end
+      end
+    end
+    return items
+  end
+
+  local function problem_counts()
+    local c = vim.diagnostic.count(nil)
+    local n = (c[1] or 0) + (c[2] or 0) + (c[3] or 0) + (c[4] or 0)
+    return n + #build_items(), c[1] or 0
+  end
+
+  local function render_problems()
+    local buf = state.problems_buf
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
+
+    local by_file = {}
+    local order = {}
+    local function add(d)
+      local key = d.bufnr
+      if not by_file[key] then
+        by_file[key] = {}
+        order[#order + 1] = key
+      end
+      table.insert(by_file[key], d)
+    end
+    for _, d in ipairs(vim.diagnostic.get(nil)) do add(d) end
+    for _, d in ipairs(build_items()) do add(d) end
+
+    local function worst(list)
+      local w = 9
+      for _, d in ipairs(list) do w = math.min(w, d.severity) end
+      return w
+    end
+    table.sort(order, function(a, b)
+      local wa, wb = worst(by_file[a]), worst(by_file[b])
+      if wa ~= wb then return wa < wb end
+      return vim.api.nvim_buf_get_name(a) < vim.api.nvim_buf_get_name(b)
+    end)
+
+    local lines, marks, rows = {}, {}, {}
+    if #order == 0 then
+      lines[1] = "  No problems have been detected in the workspace."
+      marks[1] = { { 0, #lines[1], "VsPanelPos" } }
+    end
+    for _, b in ipairs(order) do
+      local list = by_file[b]
+      table.sort(list, function(x, y)
+        if x.severity ~= y.severity then return x.severity < y.severity end
+        return x.lnum < y.lnum
+      end)
+      local name = vim.api.nvim_buf_get_name(b)
+      local tail = name ~= "" and vim.fn.fnamemodify(name, ":t") or "[No Name]"
+      local dir = name ~= "" and vim.fn.fnamemodify(name, ":~:.:h") or ""
+      local icon = util.icon(name, vim.bo[b].filetype)
+      local header = " " .. icon .. " " .. tail .. "  " .. (dir ~= "." and dir or "") .. "  " .. #list
+      lines[#lines + 1] = header
+      local s1 = #(" " .. icon .. " ")
+      marks[#lines] = {
+        { s1, s1 + #tail, "VsPanelFile" },
+        { s1 + #tail, #header - #tostring(#list), "VsPanelDir" },
+        { #header - #tostring(#list), #header, "VsPanelBadge" },
+      }
+      rows[#lines] = { bufnr = b, lnum = list[1].lnum, col = list[1].col }
+      for _, d in ipairs(list) do
+        local msg = (d.message or ""):gsub("\n.*", "")
+        local src = d.source and ("  " .. d.source) or ""
+        local pos = ("  [Ln %d, Col %d]"):format(d.lnum + 1, d.col + 1)
+        local prefix = "    " .. sev_icon[d.severity] .. " "
+        local line = prefix .. msg .. src .. pos
+        lines[#lines + 1] = line
+        marks[#lines] = {
+          { 4, #prefix, sev_hl[d.severity] },
+          { #prefix + #msg, #prefix + #msg + #src, "VsPanelSource" },
+          { #line - #pos, #line, "VsPanelPos" },
+        }
+        rows[#lines] = { bufnr = b, lnum = d.lnum, col = d.col }
+      end
+    end
+
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+    vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+    for row, list in pairs(marks) do
+      for _, mk in ipairs(list) do
+        pcall(vim.api.nvim_buf_set_extmark, buf, ns, row - 1, mk[1], { end_col = mk[2], hl_group = mk[3] })
+      end
+    end
+    state.rows = rows
+  end
+
+  local function jump_to_problem()
+    local row = vim.api.nvim_win_get_cursor(0)[1]
+    local target = state.rows[row]
+    if not target or not vim.api.nvim_buf_is_valid(target.bufnr) then return end
+    local tl = require("ui.tabline")
+    tl.goto_buf(target.bufnr)
+    pcall(vim.api.nvim_win_set_cursor, 0, { target.lnum + 1, target.col })
+    vim.cmd("normal! zv")
+  end
+
+  local function problems_buf()
+    if state.problems_buf and vim.api.nvim_buf_is_valid(state.problems_buf) then return state.problems_buf end
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "vspanel"
+    vim.bo[buf].bufhidden = "hide"
+    vim.api.nvim_buf_set_name(buf, "vs://problems")
+    vim.keymap.set("n", "<CR>", jump_to_problem, { buffer = buf, desc = "Go to problem" })
+    vim.keymap.set("n", "<2-LeftMouse>", jump_to_problem, { buffer = buf })
+    vim.keymap.set("n", "q", function() M.close() end, { buffer = buf })
+    state.problems_buf = buf
+    return buf
+  end
+
+  local function placeholder(text)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "vspanel"
+    vim.bo[buf].bufhidden = "wipe"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "  " .. text })
+    vim.bo[buf].modifiable = false
+    vim.keymap.set("n", "q", function() M.close() end, { buffer = buf })
+    return buf
+  end
+
+  local function live_terms()
+    local out = {}
+    for _, b in ipairs(state.terms) do
+      if vim.api.nvim_buf_is_valid(b) then out[#out + 1] = b end
+    end
+    state.terms = out
+    state.term_idx = math.max(1, math.min(state.term_idx, #out))
+    return out
+  end
+
+  local function style_win(win)
+    local wo = vim.wo[win]
+    wo.number = false
+    wo.relativenumber = false
+    wo.signcolumn = "no"
+    wo.foldcolumn = "0"
+    wo.winfixheight = true
+    wo.cursorline = false
+    wo.winbar = "%{%v:lua.VsUi.panel_header()%}"
+  end
+
+  local function buf_for(tab)
+    if tab == "problems" then
+      return problems_buf()
+    elseif tab == "output" then
+      if state.output_buf and vim.api.nvim_buf_is_valid(state.output_buf) then return state.output_buf end
+      return placeholder("No task output yet. Run :Build or :Run.")
+    else
+      local terms = live_terms()
+      return terms[state.term_idx]
+    end
+  end
+
+  local function ensure_win()
+    if is_open() then return state.win end
+    local cur = vim.api.nvim_get_current_win()
+    local tree = package.loaded["nvim-tree"] and require("nvim-tree.api").tree
+    local tree_open = tree and tree.is_visible()
+    if tree_open then tree.close() end
+    vim.cmd("botright " .. M.height .. "split")
+    state.win = vim.api.nvim_get_current_win()
+    style_win(state.win)
+    if tree_open then
+      pcall(tree.toggle, { focus = false, find_file = false })
+    end
+    if vim.api.nvim_win_is_valid(cur) then vim.api.nvim_set_current_win(cur) end
+    return state.win
+  end
+
+  local function new_term_buf(cmd)
+    local buf = vim.api.nvim_create_buf(true, false)
+    vim.bo[buf].buflisted = false
+    local win = ensure_win()
+    vim.api.nvim_win_set_buf(win, buf)
+    vim.api.nvim_win_call(win, function()
+      vim.fn.jobstart(cmd or vim.o.shell, { term = true, cwd = vim.fn.getcwd() })
+    end)
+    vim.bo[buf].buflisted = false
+    return buf
+  end
+
+  function M.show(tab, opts)
+    opts = opts or {}
+    state.tab = tab or state.tab
+    local win = ensure_win()
+    if state.tab == "terminal" and #live_terms() == 0 then
+      state.terms = { new_term_buf() }
+      state.term_idx = 1
+    end
+    local buf = buf_for(state.tab)
+    if vim.api.nvim_win_get_buf(win) ~= buf then vim.api.nvim_win_set_buf(win, buf) end
+    style_win(win)
+    if state.tab == "problems" then render_problems() end
+    if opts.focus then
+      vim.api.nvim_set_current_win(win)
+      if state.tab == "terminal" then vim.cmd.startinsert() end
+    end
+    vim.cmd.redrawstatus({ bang = true })
+  end
+
+  function M.close()
+    if not is_open() then return end
+    M.height = vim.api.nvim_win_get_height(state.win)
+    if #vim.api.nvim_tabpage_list_wins(0) > 1 then
+      pcall(vim.api.nvim_win_close, state.win, true)
+    end
+    state.win = nil
+  end
+
+  function M.toggle(tab)
+    if is_open() and (tab == nil or tab == state.tab) then
+      M.close()
+    else
+      M.show(tab, { focus = true })
+    end
+  end
+
+  function M.new_terminal(cmd)
+    state.tab = "terminal"
+    live_terms()
+    local buf = new_term_buf(cmd)
+    table.insert(state.terms, buf)
+    state.term_idx = #state.terms
+    M.show("terminal", { focus = true })
+  end
+
+  function M.run(cmd, opts)
+    opts = opts or {}
+    if state.output_job then pcall(vim.fn.jobstop, state.output_job) end
+    local old = state.output_buf
+
+    state.tab = "output"
+    local win = ensure_win()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_win_set_buf(win, buf)
+    style_win(win)
+    state.output_buf = buf
+    state.output_title = opts.title or cmd
+
+    local job
+    vim.api.nvim_win_call(win, function()
+      job = vim.fn.jobstart(cmd, {
+        term = true,
+        cwd = opts.cwd,
+        on_exit = function(_, code)
+          vim.schedule(function()
+            if state.output_job == job then state.output_job = nil end
+            if code == 143 or code == 129 then return end
+            if code == 0 then
+              vim.notify("✓ " .. (opts.ok_msg or cmd), vim.log.levels.INFO)
+            else
+              vim.notify("✗ " .. (opts.err_msg or cmd) .. " (exit " .. code .. ")", vim.log.levels.ERROR)
+            end
+            if opts.quickfix and vim.api.nvim_buf_is_valid(buf) then
+              local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+              vim.fn.setqflist({}, "r", { title = "Build: " .. state.output_title, lines = lines, efm = opts.efm or vim.o.errorformat })
+              local n = #vim.tbl_filter(function(i) return i.valid == 1 end, vim.fn.getqflist())
+              if code ~= 0 and n > 0 then
+                vim.notify(("%d problem(s) from build → PROBLEMS 탭 / ]q"):format(n), vim.log.levels.WARN)
+              end
+            end
+            if opts.on_exit then opts.on_exit(code) end
+            vim.cmd.redrawstatus({ bang = true })
+          end)
+        end,
+      })
+      vim.cmd("normal! G")
+    end)
+    state.output_job = job
+    if old and old ~= buf and vim.api.nvim_buf_is_valid(old) then
+      pcall(vim.api.nvim_buf_delete, old, { force = true })
+    end
+    vim.cmd.redrawstatus({ bang = true })
+    return job
+  end
+
+  local function term_name(buf)
+    local title = vim.b[buf].term_title or ""
+    if title == "" or title:match("^term://") then
+      return vim.fn.fnamemodify(vim.o.shell, ":t")
+    end
+    return title:sub(1, 18)
+  end
+
+  function M.header()
+    local total, errs = problem_counts()
+    local function tab(id, label, key)
+      local sel = state.tab == key
+      return "%" .. id .. "@v:lua.VsUi.panel_click@%#" .. (sel and "VsPanelTabSel" or "VsPanelTab") .. "# " .. label .. " %T"
+    end
+    local parts = { " " }
+    parts[#parts + 1] = tab(1, "PROBLEMS", "problems")
+    if total > 0 then
+      parts[#parts + 1] = "%#" .. (errs > 0 and "VsPanelBadgeErr" or "VsPanelBadge") .. "# " .. total .. " "
+    end
+    parts[#parts + 1] = "%#VsPanelTab#  "
+    parts[#parts + 1] = tab(2, "OUTPUT", "output")
+    if state.output_job then parts[#parts + 1] = "%#VsPanelBadge# ● " end
+    parts[#parts + 1] = "%#VsPanelTab#  "
+    parts[#parts + 1] = tab(3, "TERMINAL", "terminal")
+
+    local right = {}
+    if state.tab == "terminal" then
+      local terms = live_terms()
+      for i = 1, #terms do
+        local sel = i == state.term_idx
+        right[#right + 1] = "%" .. (10 + i) .. "@v:lua.VsUi.panel_click@%#"
+          .. (sel and "VsPanelTabSel" or "VsPanelTab") .. "# " .. i .. ": " .. util.esc(term_name(terms[i])) .. " %T"
+      end
+      right[#right + 1] = "%99@v:lua.VsUi.panel_click@%#VsPanelBtn#  %T"
+    elseif state.tab == "output" and state.output_title then
+      right[#right + 1] = "%#VsPanelTab#" .. util.esc(state.output_title:sub(1, 50)) .. " "
+    end
+    right[#right + 1] = "%98@v:lua.VsUi.panel_click@%#VsPanelBtn#  %T"
+    return table.concat(parts) .. "%#VsPanelTab#%=" .. table.concat(right)
+  end
+
+  function M.click(id)
+    if id == 1 then M.show("problems", { focus = true })
+    elseif id == 2 then M.show("output", { focus = true })
+    elseif id == 3 then M.show("terminal", { focus = true })
+    elseif id == 98 then M.close()
+    elseif id == 99 then M.new_terminal()
+    elseif id > 10 then
+      state.term_idx = id - 10
+      M.show("terminal", { focus = true })
+    end
+  end
+
+  function M.setup()
+    local group = vim.api.nvim_create_augroup("VsUiPanel", { clear = true })
+    local timer = vim.uv.new_timer()
+    vim.api.nvim_create_autocmd({ "DiagnosticChanged", "QuickFixCmdPost" }, {
+      group = group,
+      callback = function()
+        timer:stop()
+        timer:start(150, 0, vim.schedule_wrap(function()
+          if is_open() and state.tab == "problems" then render_problems() end
+          pcall(vim.cmd.redrawstatus, { bang = true })
+        end))
+      end,
+    })
+    vim.api.nvim_create_autocmd("WinClosed", {
+      group = group,
+      callback = function(ev)
+        if state.win and tonumber(ev.match) == state.win then
+          M.height = vim.api.nvim_win_get_height(state.win)
+          state.win = nil
+        end
+      end,
+    })
+    vim.api.nvim_create_autocmd("TermClose", {
+      group = group,
+      callback = function(ev)
+        if vim.tbl_contains(state.terms, ev.buf) then
+          vim.schedule(function()
+            if vim.api.nvim_buf_is_valid(ev.buf) then
+              local was_shown = is_open() and vim.api.nvim_win_get_buf(state.win) == ev.buf
+              if was_shown and #live_terms() > 1 then
+                state.term_idx = math.max(1, state.term_idx - 1)
+              end
+              pcall(vim.api.nvim_buf_delete, ev.buf, { force = true })
+              if was_shown then
+                if #live_terms() > 0 then M.show("terminal") else M.close() end
+              end
+            end
+          end)
+        end
+      end,
+    })
+
+    local map = vim.keymap.set
+    local function toggle_term()
+      if vim.fn.mode() == "i" then vim.cmd.stopinsert() end
+      M.toggle("terminal")
+    end
+    map({ "n", "i", "t" }, "<C-`>", toggle_term, { desc = "Toggle terminal panel" })
+    map({ "n", "t" }, "<C-Space>", toggle_term, { desc = "Toggle terminal panel" })
+    map({ "n", "t" }, "<C-@>", toggle_term, { desc = "Toggle terminal panel" })
+    map("n", "<leader>pp", function()
+      if is_open() then M.close() else M.show(nil, { focus = true }) end
+    end, { desc = "Toggle panel" })
+    map("n", "<leader>pe", function() M.show("problems", { focus = true }) end, { desc = "Problems" })
+    map("n", "<leader>po", function() M.show("output", { focus = true }) end, { desc = "Output" })
+    map("n", "<leader>pt", function() M.show("terminal", { focus = true }) end, { desc = "Terminal" })
+    map("n", "<leader>pn", function() M.new_terminal() end, { desc = "New terminal" })
+    map("t", "<Esc><Esc>", [[<C-\><C-n>]], { desc = "Exit terminal mode" })
+  end
+
+  return M
+end
+
+package.preload["ui"] = function()
+  local util = require("ui.util")
+  local statusline = require("ui.statusline")
+  local tabline = require("ui.tabline")
+  local winbar = require("ui.winbar")
+  local panel = require("ui.panel")
+
+  local M = {}
+
+  _G.VsUi = {
+    statusline = statusline.render,
+    tabline = tabline.render,
+    winbar = winbar.render,
+    panel_header = panel.header,
+
+    tab_click = function(buf, _, button)
+      if button == "m" then
+        tabline.close_buf(buf)
+      else
+        tabline.goto_buf(buf)
+      end
+    end,
+    tab_close = function(buf) tabline.close_buf(buf) end,
+    crumb_click = function(idx) winbar.click(idx) end,
+    panel_click = function(id) panel.click(id) end,
+
+    click_problems = function() panel.show("problems", { focus = true }) end,
+    click_git = function() vim.cmd("Neogit") end,
+    click_lsp = function() vim.cmd("checkhealth vim.lsp") end,
+    click_debug = function() pcall(function() require("dapui").toggle() end) end,
+    click_notifications = function() pcall(vim.cmd, "Noice history") end,
+  }
+
+  local function setup_hl()
+    statusline.setup_hl()
+    tabline.setup_hl()
+    winbar.setup_hl()
+    panel.setup_hl()
+  end
+
+  local function is_aux(w)
+    local buf = vim.api.nvim_win_get_buf(w)
+    return panel.is_panel_win(w) or vim.bo[buf].buftype == "terminal" or util.special_ft[vim.bo[buf].filetype]
+  end
+
+  local function quit_if_only_aux(closed)
+    if not util.is_editor_win(closed) then return end
+    local tab = vim.api.nvim_win_get_tabpage(closed)
+    vim.schedule(function()
+      if not vim.api.nvim_tabpage_is_valid(tab) then return end
+      local aux = 0
+      for _, w in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+        if vim.api.nvim_win_get_config(w).relative == "" then
+          if util.is_editor_win(w) then return end
+          if is_aux(w) then aux = aux + 1 end
+        end
+      end
+      if aux == 0 then return end
+      if #vim.api.nvim_list_tabpages() > 1 then
+        pcall(vim.cmd, "tabclose")
+      else
+        pcall(vim.cmd, "confirm qa")
+      end
+    end)
+  end
+
+  function M.setup(opts)
+    opts = opts or {}
+    statusline.extra = opts.statusline_extra
+
+    setup_hl()
+    local group = vim.api.nvim_create_augroup("VsUi", { clear = true })
+    vim.api.nvim_create_autocmd("ColorScheme", {
+      group = group,
+      callback = setup_hl,
+    })
+    vim.api.nvim_create_autocmd("WinClosed", {
+      group = group,
+      callback = function(ev)
+        local win = tonumber(ev.match)
+        if win and vim.api.nvim_win_is_valid(win) then quit_if_only_aux(win) end
+      end,
+    })
+
+    statusline.setup()
+    tabline.setup()
+    winbar.setup()
+    panel.setup()
+
+    vim.opt.fillchars:append({ eob = " ", vert = "│", horiz = "─" })
+  end
+
+  M.panel = panel
+  M.tabline = tabline
+
+  return M
+end
+
+require("ui").setup({
+  statusline_extra = function()
+    local profile = cached_profile()
+    if profile == "cpp" then
+      local target = get_cmake_target(vim.fn.getcwd())
+      if target then return "cpp[" .. target .. "]" end
+    end
+    return profile ~= "default" and profile or nil
+  end,
 })

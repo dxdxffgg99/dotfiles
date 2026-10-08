@@ -1,7 +1,7 @@
 format = """
-[](fg:#5E5C64 bg:#241F31)\
+[](fg:#3d444d bg:#161b22)\
 $os$battery$username$hostname$shell\
-[](fg:#5E5C64 bg:#241F31)\
+[](fg:#3d444d bg:#161b22)\
 $directory\
 $git_branch\
 $git_status\
@@ -14,16 +14,16 @@ $java\
 $julia\
 $nim\
 $rust\
-[](bg:#241F31 fg:#3D3846)\
+[](bg:#161b22 fg:#21262d)\
 $character\
-[ ](fg:#3D3846)\
+[ ](fg:#21262d)\
 """
 
 # Disable the blank line at the start of the prompt
 add_newline = false
 
 [os]
-style = "bg:#5E5C64 fg:#F6F5F4 bold"
+style = "bg:#3d444d fg:#f0f6fc bold"
 format = "[$symbol]($style)"
 disabled = false
 
@@ -75,7 +75,7 @@ Void = " "
 Windows = "󰍲 "
 
 [shell]
-style = "bg:#5E5C64 fg:#F6F5F4 bold"
+style = "bg:#3d444d fg:#f0f6fc bold"
 format = "[$indicator]($style)"
 disabled = false
 fish_indicator = ' 󰈺'
@@ -88,23 +88,23 @@ format=  '[ $symbol$percentage]($style)'
 
 [[battery.display]]
 threshold = 25
-style = 'bg:#5E5C64 fg:#322c3d'
+style = 'bg:#3d444d fg:#0d1117'
 
 # You can also replace your username with a neat symbol like  to save some space
 [username]
 show_always = true
-style_user = "bg:#5E5C64 fg:#F6F5F4 bold"
-style_root = "bg:#5E5C64 fg:#F6F5F4 bold"
+style_user = "bg:#3d444d fg:#f0f6fc bold"
+style_root = "bg:#3d444d fg:#f0f6fc bold"
 format = '[ $user]($style)'
 
 [hostname]
-style = "bg:#5E5C64 fg:#F6F5F4 bold"
+style = "bg:#3d444d fg:#f0f6fc bold"
 format = '[@$hostname ]($style)'
 ssh_only = false
 disabled = false
 
 [directory]
-style = "bg:#241F31 bold"
+style = "bg:#161b22 bold"
 format = "[ $path ]($style)"
 truncation_length = 0
 truncation_symbol = ""
@@ -112,84 +112,84 @@ truncation_symbol = ""
 
 [c]
 symbol = " "
-style = "bg:#241F31 fg:#ededed bold"
+style = "bg:#161b22 fg:#f0f6fc bold"
 format = '[ $symbol ($version) ]($style)'
 
 [docker_context]
 symbol = " "
-style = "bg:#81a1c1 fg:#ededed bold"
+style = "bg:#58a6ff fg:#f0f6fc bold"
 format = '[ $symbol $context ]($style) $path'
 
 [kubernetes]
 symbol = "☸ "
-style = "bg:#81a1c1 fg:#ededed bold"
+style = "bg:#58a6ff fg:#f0f6fc bold"
 format = '[ $symbol $context ]($style)'
 disabled = true
 
 [elixir]
 symbol = " "
-style = "bg:#241F31"
+style = "bg:#161b22"
 format = '[ $symbol ($version) ]($style)'
 
 [elm]
 symbol = " "
-style = "bg:#241F31"
+style = "bg:#161b22"
 format = '[ $symbol ($version) ]($style)'
 
 [git_branch]
 symbol = ""
-style = "bg:#322c3d fg:#F6F5F4 bold"
-format = '[](fg:#322c3d bg:#241F31)[$symbol $branch]($style)'
+style = "bg:#0d1117 fg:#f0f6fc bold"
+format = '[](fg:#0d1117 bg:#161b22)[$symbol $branch]($style)'
 
 [git_status]
-style = "bg:#322c3d fg:#F6F5F4 bold"
-format = '[ $all_status$ahead_behind]($style)[](fg:#322c3d bg:#241F31)'
+style = "bg:#0d1117 fg:#f0f6fc bold"
+format = '[ $all_status$ahead_behind]($style)[](fg:#0d1117 bg:#161b22)'
 
 [golang]
 symbol = " "
-style = "bg:#241F31 fg:#ededed bold"
+style = "bg:#161b22 fg:#f0f6fc bold"
 format = '[ $symbol ($version) ]($style)'
 
 [haskell]
 symbol = " "
-style = "bg:#241F31"
+style = "bg:#161b22"
 format = '[ $symbol ($version) ]($style)'
 
 [java]
 symbol = " "
-style = "bg:#241F31 fg:#ededed bold"
+style = "bg:#161b22 fg:#f0f6fc bold"
 format = '[ $symbol ($version) ]($style)'
 
 [julia]
 symbol = " "
-style = "bg:#241F31 fg:#ededed bold"
+style = "bg:#161b22 fg:#f0f6fc bold"
 format = '[ $symbol ($version) ]($style)'
 
 [nodejs]
 symbol = ""
-style = "bg:#241F31 fg:#ededed bold"
+style = "bg:#161b22 fg:#f0f6fc bold"
 format = '[ $symbol ($version) ]($style)'
 
 [nim]
 symbol = " "
-style = "bg:#241F31 fg:#ededed bold"
+style = "bg:#161b22 fg:#f0f6fc bold"
 format = '[ $symbol ($version) ]($style)'
 
 [rust]
 symbol = ""
-style = "bg:#241F31 fg:#ededed bold"
+style = "bg:#161b22 fg:#f0f6fc bold"
 format = '[ $symbol ($version) ]($style)'
 
 [time]
 disabled = false
 time_format = "%R" # Hour:Minute Format
-style = "bg:#F6F5F4 fg:#3D3846 bold"
+style = "bg:#f0f6fc fg:#21262d bold"
 # format = '[ ♥ $time ]($style)'
 format = '[$time ]($style)'
 
 [character]
 disabled = false
-success_symbol = "[✓](bg:#3D3846 fg:#2EC27E)"
-error_symbol = "[×](bg:#3D3846 fg:#E66100)"
+success_symbol = "[✓](bg:#21262d fg:#58a6ff)"
+error_symbol = "[×](bg:#21262d fg:#f0883e)"
 # format = '[ ♥ $time ]($style)'
 format = "$symbol"

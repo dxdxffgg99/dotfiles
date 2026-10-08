@@ -56,6 +56,7 @@ if [[ -z "$_ZSH_PLUGINS_LOADED" ]]; then
         source ~/.oh-my-zsh/lib/git.zsh
         source ~/.oh-my-zsh/plugins/git/git.plugin.zsh
         source ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+        ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=240"
         source ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
         ZSH_HIGHLIGHT_STYLES[command]="fg=cyan,bold"
         ZSH_HIGHLIGHT_STYLES[builtin]="fg=blue,bold"
@@ -75,8 +76,10 @@ if command -v starship >/dev/null 2>&1; then
     source "$STARSHIP_CACHE"
 fi
 
+TERM=xterm
+
 if [[ -z "$FIRST_OPEN_SHELL" ]]; then
     export FIRST_OPEN_SHELL=1
     clear
-    (fastfetch &) 2>/dev/null
+    fastfetch
 fi
